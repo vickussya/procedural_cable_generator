@@ -9,19 +9,7 @@ and make layout/iteration faster while experimenting with cable routing and dres
 
 ## Install
 
-This repo supports both install types:
-
-### Blender Extensions (recommended for Blender 4.2+ / Blender 5+)
-
-1. Download the repository as a zip (or zip the repo folder).
-2. In Blender: `Edit > Preferences > Extensions > Install from Disk...`
-3. Select the zip and enable **Procedural Cable Generator**.
-
-This works because the repo root includes:
-- `__init__.py` (entry point)
-- `blender_manifest.toml` (extension manifest)
-
-### Legacy add-on (older Blender versions)
+This is a **classic Blender add-on** (not a Blender Extension).
 
 1. Zip only the folder `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
 2. In Blender: `Edit > Preferences > Add-ons > Install...`
@@ -53,10 +41,8 @@ in the panel and run **Create Cables From OUT/MID/IN**.
 
 ## Repo layout
 
-- `__init__.py` Repo-zip entry point (keeps whole-repo ZIP installable).
-- `blender_manifest.toml` Blender Extensions manifest (Blender 4.2+ / Blender 5+).
-- `procedural_cable_generator/__init__.py` Blender add-on implementation entry point (register/unregister).
+- `procedural_cable_generator/__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
 - `procedural_cable_generator/operators.py` Operators for creating cables.
 - `procedural_cable_generator/props.py` Scene settings and UI properties.
-- `procedural_cable_generator/ui.py` 3D Viewport sidebar panel.
+- `procedural_cable_generator/panel.py` 3D Viewport sidebar panel.
 - `procedural_cable_generator/utils.py` Shared utility functions.

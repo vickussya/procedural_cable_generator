@@ -13,7 +13,7 @@ from bpy.props import PointerProperty
 
 from .operators import PCG_OT_create_cable_from_selection, PCG_OT_create_cables_from_out_mid_in
 from .props import PCG_Settings
-from .ui import PCG_PT_cable_panel
+from .panel import PCG_PT_cable_panel
 
 
 _CLASSES = (
@@ -25,13 +25,14 @@ _CLASSES = (
 
 
 def register():
+    # Classic add-on registration entry point used by Blender Preferences > Add-ons.
     for cls in _CLASSES:
         bpy.utils.register_class(cls)
     bpy.types.Scene.pcg_settings = PointerProperty(type=PCG_Settings)
 
 
 def unregister():
+    # Unregister in reverse order to avoid dependency issues.
     del bpy.types.Scene.pcg_settings
     for cls in reversed(_CLASSES):
         bpy.utils.unregister_class(cls)
-
