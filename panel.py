@@ -1,7 +1,6 @@
 import bpy
 
 from .operators import PCG_OT_create_cable_from_selection, PCG_OT_create_cables_from_out_mid_in
-from .props import PCG_Settings
 
 
 class PCG_PT_cable_panel(bpy.types.Panel):
@@ -12,7 +11,7 @@ class PCG_PT_cable_panel(bpy.types.Panel):
     bl_category = "Cable"
 
     def draw(self, context: bpy.types.Context):
-        settings: PCG_Settings = context.scene.pcg_settings
+        settings = context.scene.pcg_settings
         layout = self.layout
 
         col = layout.column(align=True)

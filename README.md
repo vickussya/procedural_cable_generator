@@ -7,11 +7,13 @@ Simple add-on that creates a cable as a Bezier curve driven by control empties.
 This tool started as a small workflow script during an environment scene project, to automate repetitive cable setup
 and make layout/iteration faster while experimenting with cable routing and dressing.
 
-## Install
+## Install (classic add-on)
 
-This is a **classic Blender add-on** (not a Blender Extension).
+This project is a **classic Blender add-on**.
 
-1. Zip only the folder `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
+The add-on root is the **repository folder itself** (it contains `__init__.py`).
+
+1. Zip the **repo folder** `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
 2. In Blender: `Edit > Preferences > Add-ons > Install...`
 3. Select that zip and enable **Procedural Cable Generator**.
 
@@ -41,8 +43,8 @@ in the panel and run **Create Cables From OUT/MID/IN**.
 
 ## Repo layout
 
-- `procedural_cable_generator/__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
-- `procedural_cable_generator/operators.py` Operators for creating cables.
-- `procedural_cable_generator/props.py` Scene settings and UI properties.
-- `procedural_cable_generator/panel.py` 3D Viewport sidebar panel.
-- `procedural_cable_generator/utils.py` Shared utility functions.
+- `__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
+- `operators.py` Operators for creating cables.
+- `properties.py` Scene settings and UI properties.
+- `panel.py` 3D Viewport sidebar panel.
+- `utils.py` Shared utility functions.

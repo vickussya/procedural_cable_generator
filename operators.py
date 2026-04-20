@@ -2,7 +2,6 @@ import math
 
 import bpy
 
-from .props import PCG_Settings
 from .utils import (
     create_cable_curve,
     ensure_root_collection,
@@ -26,7 +25,7 @@ class PCG_OT_create_cable_from_selection(bpy.types.Operator):
         return a is not None and b is not None and context.mode == "OBJECT"
 
     def execute(self, context: bpy.types.Context):
-        settings: PCG_Settings = context.scene.pcg_settings
+        settings = context.scene.pcg_settings
         start_obj, end_obj = ordered_selected_pair(context)
         if not start_obj or not end_obj:
             self.report({"ERROR"}, "Select exactly two objects (active object is Start)")
@@ -97,7 +96,7 @@ class PCG_OT_create_cables_from_out_mid_in(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context: bpy.types.Context):
-        settings: PCG_Settings = context.scene.pcg_settings
+        settings = context.scene.pcg_settings
         out_prefix = settings.legacy_out_prefix
         mid_prefix = settings.legacy_mid_prefix
         in_prefix = settings.legacy_in_prefix

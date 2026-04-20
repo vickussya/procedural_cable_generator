@@ -12,8 +12,8 @@ import bpy
 from bpy.props import PointerProperty
 
 from .operators import PCG_OT_create_cable_from_selection, PCG_OT_create_cables_from_out_mid_in
-from .props import PCG_Settings
 from .panel import PCG_PT_cable_panel
+from .properties import PCG_Settings
 
 
 _CLASSES = (
@@ -36,3 +36,4 @@ def unregister():
     del bpy.types.Scene.pcg_settings
     for cls in reversed(_CLASSES):
         bpy.utils.unregister_class(cls)
+
