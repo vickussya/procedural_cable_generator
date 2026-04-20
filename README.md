@@ -19,22 +19,45 @@ The add-on root is the **repository folder itself** (it contains `__init__.py`).
 
 ## Use (v1)
 
-1. Select exactly **two** objects in the viewport.
+Open the UI here:
+
+`View3D > Sidebar (N) > Cable > Cable Generator`
+
+All creation modes generate a Bezier curve plus control empties in a dedicated collection under `Procedural Cables`.
+Moving the `CTRL_*` empties updates the cable shape.
+
+### Create modes
+
+#### 1) From 2 Objects (quick start)
+
+1. Select exactly **two** objects.
 2. Make sure the **active** object is the start (last selected).
-3. Open: `View3D > Sidebar (N) > Cable > Cable Generator`
-4. Set:
-   - **Cable Name**
-   - **Middle Controls** (0 = straight-ish, higher = curvier)
-   - **Slack** (negative values sag)
-   - **Thickness** and **Bevel Resolution**
-5. Click **Create Cable From Selection**
+3. Set **Middle Controls** (0 = straighter, higher = curvier).
+4. (Optional) Enable **Parent End Controls** so the start/end controls follow the selected objects.
+5. Click **Create Cable From 2 Selected Objects**.
 
-The add-on creates:
-- A `CABLE_*` curve object
-- Control empties `CTRL_*_START`, `CTRL_*_MID_XX`, `CTRL_*_END`
-- A dedicated collection under `Procedural Cables`
+#### 2) From Selected Objects (Chain)
 
-Moving the control empties updates the cable shape.
+Create a cable that passes through **2+ selected objects** (useful for routing a cable across props).
+
+1. Select **two or more** objects.
+2. Set **Chain Order**:
+   - **Nearest**: builds a nearest-neighbor chain starting from the active object
+   - **Selection**: uses Blender's selection list as-is
+   - **Name**: orders by object name
+3. (Optional) Enable **Parent Chain Controls** to parent each control to its corresponding selected object.
+4. Click **Create Cable From Selected Objects (Chain)**.
+
+Tip: after creating the chain cable, you can freely move the middle `CTRL_*` empties to make the cable messy,
+tangled, or to route it around scene geometry.
+
+#### 3) Free Cable (Cursor)
+
+Create a cable with controls only (no object selection required), then move controls by hand to route it anywhere.
+
+1. Place the 3D cursor where you want the cable to start.
+2. Set **Free Controls** (total number of control empties) and **Free Length**.
+3. Click **Create Free Cable (Cursor)**.
 
 ## Legacy mode
 
