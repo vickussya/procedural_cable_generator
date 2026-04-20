@@ -2,11 +2,18 @@
 
 Simple add-on that creates a cable as a Bezier curve driven by control empties.
 
+## Background
+
+This tool started as a small workflow script during an environment scene project, to automate repetitive cable setup
+and make layout/iteration faster while experimenting with cable routing and dressing.
+
 ## Install
 
 1. In Blender: `Edit > Preferences > Add-ons > Install...`
-2. Select `procedural_cable_generator.py` from this repo.
-3. Enable **Procedural Cable Generator**.
+2. Install the add-on as a **zip**:
+   - Zip the folder `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
+   - Select that zip in Blender.
+3. Enable **Procedural Cable Generator** in the add-ons list.
 
 ## Use (v1)
 
@@ -32,3 +39,10 @@ Moving the control empties updates the cable shape.
 If you already have empties named like `OUT_01`, `MID_01`, `IN_01`, you can enable **Show Legacy Tools**
 in the panel and run **Create Cables From OUT/MID/IN**.
 
+## Repo layout
+
+- `procedural_cable_generator/__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
+- `procedural_cable_generator/operators.py` Operators for creating cables.
+- `procedural_cable_generator/props.py` Scene settings and UI properties.
+- `procedural_cable_generator/ui.py` 3D Viewport sidebar panel.
+- `procedural_cable_generator/utils.py` Shared utility functions.
