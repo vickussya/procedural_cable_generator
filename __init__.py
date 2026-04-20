@@ -1,6 +1,6 @@
 bl_info = {
     "name": "Procedural Cable Generator",
-    "author": "procedural_cable_generator contributors",
+    "author": "Vickussya",
     "version": (1, 0, 0),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Cable",
@@ -11,7 +11,12 @@ bl_info = {
 import bpy
 from bpy.props import PointerProperty
 
-from .operators import PCG_OT_create_cable_from_selection, PCG_OT_create_cables_from_out_mid_in
+from .operators import (
+    PCG_OT_create_cable_from_object_chain,
+    PCG_OT_create_cable_from_selection,
+    PCG_OT_create_cables_from_out_mid_in,
+    PCG_OT_create_free_cable,
+)
 from .panel import PCG_PT_cable_panel
 from .properties import PCG_Settings
 
@@ -19,6 +24,8 @@ from .properties import PCG_Settings
 _CLASSES = (
     PCG_Settings,
     PCG_OT_create_cable_from_selection,
+    PCG_OT_create_cable_from_object_chain,
+    PCG_OT_create_free_cable,
     PCG_OT_create_cables_from_out_mid_in,
     PCG_PT_cable_panel,
 )
@@ -36,4 +43,3 @@ def unregister():
     del bpy.types.Scene.pcg_settings
     for cls in reversed(_CLASSES):
         bpy.utils.unregister_class(cls)
-

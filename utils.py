@@ -83,6 +83,12 @@ def add_point_world_location_driver(
     bezier_point: bpy.types.BezierSplinePoint,
     empty: bpy.types.Object,
 ) -> None:
+    def _clear_driver_variables(driver: bpy.types.Driver) -> None:
+        # `driver.variables` is a Blender collection type (bpy_prop_collection) and does not support `.clear()`
+        # in some Blender versions. Remove items one-by-one for compatibility.
+        for v in list(driver.variables):
+            driver.variables.remove(v)
+
     for axis, transform_type, var_name in (
         (0, "LOC_X", "vx"),
         (1, "LOC_Y", "vy"),
@@ -91,7 +97,7 @@ def add_point_world_location_driver(
         fcurve = bezier_point.driver_add("co", axis)
         driver = fcurve.driver
         driver.type = "SCRIPTED"
-        driver.variables.clear()
+        _clear_driver_variables(driver)
 
         var = driver.variables.new()
         var.name = var_name
@@ -133,4 +139,3 @@ def create_cable_curve(
     curve_obj.matrix_world = Matrix.Identity(4)
     collection.objects.link(curve_obj)
     return curve_obj
-

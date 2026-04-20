@@ -1,5 +1,5 @@
 import bpy
-from bpy.props import BoolProperty, FloatProperty, IntProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
 
 
 class PCG_Settings(bpy.types.PropertyGroup):
@@ -35,6 +35,23 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Number of middle control empties between start and end",
     )
 
+    chain_order: EnumProperty(
+        name="Chain Order",
+        items=(
+            ("NEAREST", "Nearest", "Order selected objects as a nearest-neighbor chain starting from the active object"),
+            ("SELECTION", "Selection", "Use Blender's selected object order (may vary)"),
+            ("NAME", "Name", "Order selected objects by name"),
+        ),
+        default="NEAREST",
+        description="How to order multiple selected objects when creating a multi-point cable",
+    )
+
+    parent_chain_controls: BoolProperty(
+        name="Parent Chain Controls",
+        default=False,
+        description="Parent each generated control empty to its corresponding selected object",
+    )
+
     slack: FloatProperty(
         name="Slack",
         default=0.0,
@@ -61,6 +78,24 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Parent start/end controls to the selected objects so the cable follows when they move",
     )
 
+    free_length: FloatProperty(
+        name="Free Length",
+        default=2.0,
+        min=0.0,
+        soft_max=20.0,
+        description="Initial length of a free cable created at the 3D cursor",
+        subtype="DISTANCE",
+        unit="LENGTH",
+    )
+
+    free_controls: IntProperty(
+        name="Free Controls",
+        default=6,
+        min=2,
+        max=64,
+        description="Total number of control empties for a free cable (including start/end)",
+    )
+
     show_legacy: BoolProperty(
         name="Show Legacy Tools",
         default=False,
@@ -69,4 +104,3 @@ class PCG_Settings(bpy.types.PropertyGroup):
     legacy_out_prefix: StringProperty(name="OUT Prefix", default="OUT_")
     legacy_mid_prefix: StringProperty(name="MID Prefix", default="MID_")
     legacy_in_prefix: StringProperty(name="IN Prefix", default="IN_")
-

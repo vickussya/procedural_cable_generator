@@ -1,6 +1,11 @@
 import bpy
 
-from .operators import PCG_OT_create_cable_from_selection, PCG_OT_create_cables_from_out_mid_in
+from .operators import (
+    PCG_OT_create_cable_from_object_chain,
+    PCG_OT_create_cable_from_selection,
+    PCG_OT_create_cables_from_out_mid_in,
+    PCG_OT_create_free_cable,
+)
 
 
 class PCG_PT_cable_panel(bpy.types.Panel):
@@ -15,15 +20,32 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         layout = self.layout
 
         col = layout.column(align=True)
-        col.label(text="Create From Selection:")
+        col.label(text="Cable Settings:")
         col.prop(settings, "cable_name")
-        col.prop(settings, "middle_controls")
         col.prop(settings, "slack")
         col.prop(settings, "thickness")
         col.prop(settings, "bevel_resolution")
         col.prop(settings, "empty_size")
-        col.prop(settings, "parent_end_controls")
-        col.operator(PCG_OT_create_cable_from_selection.bl_idname, icon="CURVE_BEZCURVE")
+
+        layout.separator()
+
+        box = layout.box()
+        box.label(text="From 2 Objects:")
+        box.prop(settings, "middle_controls")
+        box.prop(settings, "parent_end_controls")
+        box.operator(PCG_OT_create_cable_from_selection.bl_idname, icon="CURVE_BEZCURVE")
+
+        box = layout.box()
+        box.label(text="From Selected Objects (Chain):")
+        box.prop(settings, "chain_order")
+        box.prop(settings, "parent_chain_controls")
+        box.operator(PCG_OT_create_cable_from_object_chain.bl_idname, icon="CURVE_BEZCURVE")
+
+        box = layout.box()
+        box.label(text="Free Cable:")
+        box.prop(settings, "free_controls")
+        box.prop(settings, "free_length")
+        box.operator(PCG_OT_create_free_cable.bl_idname, icon="CURVE_BEZCURVE")
 
         layout.separator()
         layout.prop(settings, "show_legacy", toggle=True)
@@ -36,6 +58,4 @@ class PCG_PT_cable_panel(bpy.types.Panel):
             box.operator(PCG_OT_create_cables_from_out_mid_in.bl_idname, icon="OUTLINER_OB_EMPTY")
 
         layout.separator()
-        layout.label(text="Tip: select exactly 2 objects.")
-        layout.label(text="Active object is Start.")
-
+        layout.label(text="Tip: move CTRL empties to shape cables.")
