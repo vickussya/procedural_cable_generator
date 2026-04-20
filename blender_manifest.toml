@@ -1,0 +1,17 @@
+schema_version = "1.0.0"
+
+# Extension identity (used for the module name under Blender's `bl_ext.*` namespace).
+id = "procedural_cable_generator"
+name = "Procedural Cable Generator"
+tagline = "Generate editable cable curves driven by control empties"
+version = "1.0.0"
+type = "add-on"
+
+maintainer = "procedural_cable_generator contributors"
+license = ["SPDX:GPL-3.0-or-later"]
+
+# Extensions were introduced in Blender 4.2. Keep legacy add-on support via `bl_info` in `__init__.py`.
+blender_version_min = "4.2.0"
+
+tags = ["Object"]
+
