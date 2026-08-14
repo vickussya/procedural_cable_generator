@@ -87,7 +87,11 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                 col.prop(dyn, "collision_radius")
 
                 box.separator()
-                box.prop(dyn, "pin_mode")
+                # Label on its own row: the property name is truncated to "Pin Cont..." when
+                # drawn inline in a narrow sidebar.
+                col = box.column(align=True)
+                col.label(text="Pin Controls:")
+                col.prop(dyn, "pin_mode", text="")
 
                 col = box.column(align=True)
                 col.label(text="Collision Collection:")
