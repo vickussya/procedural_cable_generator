@@ -3,8 +3,6 @@
 Simple add-on that creates a cable as a Bezier curve driven by control empties, and can optionally simulate it so
 it drapes over and collides with characters and props.
 
-<img width="322" height="429" alt="Screenshot 2026-04-20 134153" src="https://github.com/user-attachments/assets/fea7951d-719d-423c-b125-5c7ed3339925" />
-
 ## Background
 
 This tool started as a small workflow script during an environment scene project, to automate repetitive cable setup
