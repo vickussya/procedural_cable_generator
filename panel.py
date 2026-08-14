@@ -101,9 +101,10 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                     warn.label(text="Use Collision Setup below.")
                 elif dyn.pin_mode == "ALL":
                     warn = box.column(align=True)
-                    warn.label(text="All controls pinned:", icon="ERROR")
-                    warn.label(text="cable is held rigid and cannot")
-                    warn.label(text="drape. Use Ends Only to collide.")
+                    warn.label(text="All controls pinned.", icon="ERROR")
+                    warn.label(text="Pins override collision, so the")
+                    warn.label(text="cable is dragged through mesh.")
+                    warn.label(text="Use Ends Only to collide.")
 
                 adv = box.box()
                 adv.label(text="Advanced (raise with care):")

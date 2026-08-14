@@ -30,6 +30,8 @@ COLLIDER_ASSET_GROUP_NAME = "Collider"
 COLLIDER_GROUP_NAME = "PCG Cable Collider"
 COLLIDER_MODIFIER_NAME = "PCG Collider"
 COLLIDER_COLLECTION_NAME = "Cable Colliders"
+COLLIDER_GROUP_VERSION = 2
+COLLIDER_VERSION_KEY = "pcg_collider_version"
 
 
 class DynamicsError(Exception):
@@ -82,14 +84,17 @@ def ensure_cloth_dynamics_asset() -> bpy.types.NodeTree:
 
 def get_or_create_collider_group() -> bpy.types.NodeTree:
     existing = bpy.data.node_groups.get(COLLIDER_GROUP_NAME)
-    if existing is not None:
+    if existing is not None and existing.get(COLLIDER_VERSION_KEY) == COLLIDER_GROUP_VERSION:
         return existing
 
     collider_asset = _ensure_bundled_asset(COLLIDER_ASSET_GROUP_NAME)
-    ng = bpy.data.node_groups.new(COLLIDER_GROUP_NAME, "GeometryNodeTree")
+    group_name = unique_name(COLLIDER_GROUP_NAME, {g.name for g in bpy.data.node_groups})
+    ng = bpy.data.node_groups.new(group_name, "GeometryNodeTree")
+    ng[COLLIDER_VERSION_KEY] = COLLIDER_GROUP_VERSION
     ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
     ng.interface.new_socket("Deforming", in_out="INPUT", socket_type="NodeSocketBool")
     ng.interface.new_socket("Friction", in_out="INPUT", socket_type="NodeSocketFloat")
+    ng.interface.new_socket("Margin", in_out="INPUT", socket_type="NodeSocketFloat")
     ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
 
     gin = ng.nodes.new("NodeGroupInput")
@@ -99,6 +104,7 @@ def get_or_create_collider_group() -> bpy.types.NodeTree:
     ng.links.new(gin.outputs["Geometry"], collider.inputs["Geometry"])
     ng.links.new(gin.outputs["Deforming"], collider.inputs["Deforming"])
     ng.links.new(gin.outputs["Friction"], collider.inputs["Friction"])
+    ng.links.new(gin.outputs["Margin"], collider.inputs["Margin"])
     ng.links.new(collider.outputs["Geometry"], gout.inputs["Geometry"])
     return ng
 
@@ -115,18 +121,31 @@ def ensure_collider_collection(scene: bpy.types.Scene) -> bpy.types.Collection:
     return collection
 
 
-def make_collider(obj: bpy.types.Object, *, deforming: bool = True, friction: float = 0.2) -> bool:
-    """Give obj a collider modifier so simulated cables can hit it. Returns True if added."""
+def make_collider(
+    obj: bpy.types.Object,
+    *,
+    deforming: bool = True,
+    friction: float = 0.2,
+    margin: float = 0.03,
+) -> bool:
+    """Set obj up as a collider for simulated cables. Returns True if newly added.
+
+    Re-running updates an existing collider's settings rather than skipping it, so the
+    operator doubles as a way to retune margin/friction on already-registered colliders.
+    """
     if obj.type != "MESH":
         return False
-    if obj.modifiers.get(COLLIDER_MODIFIER_NAME) is not None:
-        return False
 
-    mod = obj.modifiers.new(COLLIDER_MODIFIER_NAME, type="NODES")
+    mod = obj.modifiers.get(COLLIDER_MODIFIER_NAME)
+    newly_added = mod is None
+    if newly_added:
+        mod = obj.modifiers.new(COLLIDER_MODIFIER_NAME, type="NODES")
+
     mod.node_group = get_or_create_collider_group()
     _set_modifier_input(mod, "Deforming", deforming)
     _set_modifier_input(mod, "Friction", friction)
-    return True
+    _set_modifier_input(mod, "Margin", margin)
+    return newly_added
 
 
 def get_or_create_wrapper_group() -> bpy.types.NodeTree:

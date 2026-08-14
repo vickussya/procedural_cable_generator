@@ -45,7 +45,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Steps, Simulation Resolution).
   - `utils.is_cable_curve_object()` helper added to identify add-on-generated cable curves for operator polling.
 
+### Added
+- Dynamics: `Add Selected As Colliders` now exposes **Margin**, **Friction** and **Deforming** in its redo panel
+  (`F9`), and re-running it updates existing colliders instead of skipping them, so collider settings can be
+  retuned without removing and re-adding them. Margin is the collider's surface standoff — raise it if cables
+  sink into thin or fast-moving geometry.
+
 ### Fixed
+- **Dynamics: animating a pinned control dragged the cable through colliders.** A pinned control is a hard
+  positional constraint that collision cannot override, so this is inherent rather than a solver bug — measured
+  at 11 cable points up to 0.45 m inside a test mesh. The panel warning now says so explicitly, and the README
+  documents the two workflows that do work: let the cable fall with *Ends Only* pinning, or animate the collider
+  rather than the cable. Draping and animated colliders were measured at zero penetration, including a collider
+  crossing 36 m in 60 frames.
 - **Dynamics: colliders were set up but never actually used.** Assigning the collider collection to a cable was a
   manual step that was easy to miss, so cables silently passed through colliders that looked correctly configured.
   Now `Add Selected As Colliders` adopts the colliders on any dynamic cable that has no collection chosen yet

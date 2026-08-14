@@ -350,6 +350,31 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
     bl_label = "Add Selected As Colliders"
     bl_options = {"REGISTER", "UNDO"}
 
+    margin: bpy.props.FloatProperty(
+        name="Margin",
+        default=0.01,
+        min=0.0,
+        soft_max=0.5,
+        description="Extra standoff kept around the collider surface. Raise it if cables sink into "
+        "fast-moving or thin geometry",
+        subtype="DISTANCE",
+        unit="LENGTH",
+    )
+
+    friction: bpy.props.FloatProperty(
+        name="Friction",
+        default=0.2,
+        min=0.0,
+        max=1.0,
+        description="How much the collider surface grips cables that slide across it",
+    )
+
+    deforming: bpy.props.BoolProperty(
+        name="Deforming",
+        default=True,
+        description="Enable for animated or armature-driven meshes whose shape changes over time",
+    )
+
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
         return context.mode == "OBJECT" and any(
@@ -367,7 +392,9 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
             collection = dynamics.ensure_collider_collection(context.scene)
             added = 0
             for obj in meshes:
-                if dynamics.make_collider(obj):
+                if dynamics.make_collider(
+                    obj, deforming=self.deforming, friction=self.friction, margin=self.margin
+                ):
                     added += 1
                 if obj.name not in collection.objects:
                     collection.objects.link(obj)

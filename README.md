@@ -99,7 +99,26 @@ Requires **Blender 5.2 LTS**. Any cable created above can be simulated without r
 
 Colliders are set up as *deforming*, so animated/armature-driven characters work. Collider objects must be
 meshes. **Collision Radius** controls the cable's effective thickness for contact, independent of its visual
-`Thickness`.
+`Thickness`. Re-running **Add Selected As Colliders** updates existing colliders, so you can use the operator's
+redo panel (`F9`) to retune **Margin** and **Friction** — raise Margin if cables sink into thin or fast-moving
+geometry.
+
+### Don't animate a pinned control into geometry
+
+A pinned control is a **hard constraint**: the cable is forced to that exact point. Collision cannot override it,
+so animating a pinned control into a mesh drags the cable straight through. This is a limitation of pinning, not
+a bug — measured at 11 cable points up to 0.45 m inside a test mesh.
+
+To see a cable interact with geometry, do one of these instead:
+
+- **Let it fall.** Set **Pin Controls** to *Ends Only*, place the middle controls above the object, and play from
+  frame 1. Gravity drapes the cable onto the mesh — no animation needed.
+- **Animate the character, not the cable.** Set the character up as a collider and animate *it* through the
+  draped cable. This is the intended workflow, and it is stable even at speed (measured: zero penetration with a
+  collider crossing 36 m in 60 frames).
+
+Because this is a simulation, always **play forward from frame 1** rather than scrubbing — the solver carries
+state between frames, so jumping around the timeline shows partially-solved results.
 
 This uses Blender 5.2's **Cloth Dynamics (Experimental)** node asset, which Blender itself labels experimental —
 its behavior may change in future Blender point releases. Bone-attachment, tiers/presets, and baking are not
