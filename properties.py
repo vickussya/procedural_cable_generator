@@ -1,5 +1,12 @@
 import bpy
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
+from bpy.props import (
+    BoolProperty,
+    EnumProperty,
+    FloatProperty,
+    IntProperty,
+    PointerProperty,
+    StringProperty,
+)
 
 from . import dynamics
 
@@ -188,6 +195,37 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=1,
         soft_max=50,
         description="Constraint solver iterations per substep; higher is more stable but slower. Raise with care",
+        update=_update_dynamics_settings,
+    )
+
+    pin_mode: EnumProperty(
+        name="Pin Controls",
+        items=(
+            (
+                "ALL",
+                "All Controls",
+                "Pin the cable at every CTRL_* control, so the whole cable holds the pose you set",
+            ),
+            (
+                "ENDS",
+                "Ends Only",
+                "Pin only the first and last control. Middle controls still shape the cable's rest "
+                "path, but the span between them is free to drape and collide",
+            ),
+            ("NONE", "None", "Pin nothing, letting the whole cable fall freely"),
+        ),
+        default="ALL",
+        description="Which control empties hold the cable in place during simulation",
+        update=_update_dynamics_settings,
+    )
+
+    collision_collection: PointerProperty(
+        name="Collision Collection",
+        type=bpy.types.Collection,
+        description=(
+            "Collection of collider objects the cable can hit. Use 'Add Selected As Colliders' "
+            "to set characters and props up for this"
+        ),
         update=_update_dynamics_settings,
     )
 

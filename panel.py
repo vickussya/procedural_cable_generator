@@ -6,6 +6,7 @@ from .operators import (
     PCG_OT_create_cable_from_selection,
     PCG_OT_create_cables_from_out_mid_in,
     PCG_OT_create_free_cable,
+    PCG_OT_add_selected_colliders,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
 )
@@ -84,6 +85,16 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                 col.prop(dyn, "damping")
                 col.prop(dyn, "friction")
                 col.prop(dyn, "collision_radius")
+
+                box.separator()
+                box.prop(dyn, "pin_mode")
+                if dyn.pin_mode == "ALL":
+                    box.label(text="Ends Only frees the cable to drape.", icon="INFO")
+
+                col = box.column(align=True)
+                col.label(text="Collision:")
+                col.prop(dyn, "collision_collection", text="")
+                col.operator(PCG_OT_add_selected_colliders.bl_idname, icon="MOD_PHYSICS")
 
                 adv = box.box()
                 adv.label(text="Advanced (raise with care):")

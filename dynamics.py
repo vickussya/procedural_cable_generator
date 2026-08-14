@@ -12,11 +12,24 @@ DYNAMICS_MODIFIER_NAME = "PCG Dynamics"
 
 # Bumped whenever the wrapper node group's layout changes, so .blend files holding an
 # older group get a freshly built one instead of silently reusing an incompatible tree.
-WRAPPER_GROUP_VERSION = 2
+WRAPPER_GROUP_VERSION = 3
 WRAPPER_VERSION_KEY = "pcg_wrapper_version"
 
 # Upper bound for the XPBD compliance values fed to Cloth Dynamics; see compliance_from().
 COMPLIANCE_SCALE = 0.1
+
+# Pin Mode values shared between the node group and PCG_DynamicsSettings.pin_mode.
+PIN_MODE_ALL = 0
+PIN_MODE_ENDS = 1
+PIN_MODE_NONE = 2
+
+# Maps PCG_DynamicsSettings.pin_mode identifiers onto the node group's integer input.
+PIN_MODE_VALUES = {"ALL": PIN_MODE_ALL, "ENDS": PIN_MODE_ENDS, "NONE": PIN_MODE_NONE}
+
+COLLIDER_ASSET_GROUP_NAME = "Collider"
+COLLIDER_GROUP_NAME = "PCG Cable Collider"
+COLLIDER_MODIFIER_NAME = "PCG Collider"
+COLLIDER_COLLECTION_NAME = "Cable Colliders"
 
 
 class DynamicsError(Exception):
@@ -40,27 +53,80 @@ def _get_modifier_input(mod: bpy.types.NodesModifier, socket_name: str):
     return getattr(mod.properties.inputs, identifier).value
 
 
-def ensure_cloth_dynamics_asset() -> bpy.types.NodeTree:
-    existing = bpy.data.node_groups.get(CLOTH_ASSET_GROUP_NAME)
+def _ensure_bundled_asset(group_name: str) -> bpy.types.NodeTree:
+    existing = bpy.data.node_groups.get(group_name)
     if existing is not None:
         return existing
 
     asset_path = os.path.join(bpy.utils.system_resource("DATAFILES"), CLOTH_ASSET_BLEND_RELATIVE_PATH)
     if not os.path.exists(asset_path):
         raise DynamicsError(
-            "Could not find the bundled 'Cloth Dynamics (Experimental)' node asset "
+            f"Could not find the bundled '{group_name}' node asset "
             f"(expected at {asset_path}). Dynamics requires Blender 5.2 LTS or newer."
         )
 
     with bpy.data.libraries.load(asset_path, link=False) as (data_from, data_to):
-        if CLOTH_ASSET_GROUP_NAME not in data_from.node_groups:
+        if group_name not in data_from.node_groups:
             raise DynamicsError(
-                f"The bundled asset file no longer contains a '{CLOTH_ASSET_GROUP_NAME}' node group. "
+                f"The bundled asset file no longer contains a '{group_name}' node group. "
                 "This add-on may need updating for this Blender version."
             )
-        data_to.node_groups = [CLOTH_ASSET_GROUP_NAME]
+        data_to.node_groups = [group_name]
 
     return data_to.node_groups[0]
+
+
+def ensure_cloth_dynamics_asset() -> bpy.types.NodeTree:
+    return _ensure_bundled_asset(CLOTH_ASSET_GROUP_NAME)
+
+
+def get_or_create_collider_group() -> bpy.types.NodeTree:
+    existing = bpy.data.node_groups.get(COLLIDER_GROUP_NAME)
+    if existing is not None:
+        return existing
+
+    collider_asset = _ensure_bundled_asset(COLLIDER_ASSET_GROUP_NAME)
+    ng = bpy.data.node_groups.new(COLLIDER_GROUP_NAME, "GeometryNodeTree")
+    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    ng.interface.new_socket("Deforming", in_out="INPUT", socket_type="NodeSocketBool")
+    ng.interface.new_socket("Friction", in_out="INPUT", socket_type="NodeSocketFloat")
+    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+
+    gin = ng.nodes.new("NodeGroupInput")
+    gout = ng.nodes.new("NodeGroupOutput")
+    collider = ng.nodes.new("GeometryNodeGroup")
+    collider.node_tree = collider_asset
+    ng.links.new(gin.outputs["Geometry"], collider.inputs["Geometry"])
+    ng.links.new(gin.outputs["Deforming"], collider.inputs["Deforming"])
+    ng.links.new(gin.outputs["Friction"], collider.inputs["Friction"])
+    ng.links.new(collider.outputs["Geometry"], gout.inputs["Geometry"])
+    return ng
+
+
+def ensure_collider_collection(scene: bpy.types.Scene) -> bpy.types.Collection:
+    existing = bpy.data.collections.get(COLLIDER_COLLECTION_NAME)
+    if existing is not None:
+        if existing.name not in {c.name for c in scene.collection.children}:
+            scene.collection.children.link(existing)
+        return existing
+
+    collection = bpy.data.collections.new(COLLIDER_COLLECTION_NAME)
+    scene.collection.children.link(collection)
+    return collection
+
+
+def make_collider(obj: bpy.types.Object, *, deforming: bool = True, friction: float = 0.2) -> bool:
+    """Give obj a collider modifier so simulated cables can hit it. Returns True if added."""
+    if obj.type != "MESH":
+        return False
+    if obj.modifiers.get(COLLIDER_MODIFIER_NAME) is not None:
+        return False
+
+    mod = obj.modifiers.new(COLLIDER_MODIFIER_NAME, type="NODES")
+    mod.node_group = get_or_create_collider_group()
+    _set_modifier_input(mod, "Deforming", deforming)
+    _set_modifier_input(mod, "Friction", friction)
+    return True
 
 
 def get_or_create_wrapper_group() -> bpy.types.NodeTree:
@@ -87,6 +153,8 @@ def _build_wrapper_node_group(cloth_asset: bpy.types.NodeTree) -> bpy.types.Node
     iface.new_socket("Substeps", in_out="INPUT", socket_type="NodeSocketInt")
     iface.new_socket("Constraint Steps", in_out="INPUT", socket_type="NodeSocketInt")
     iface.new_socket("Segment Divisions", in_out="INPUT", socket_type="NodeSocketInt")
+    iface.new_socket("Pin Mode", in_out="INPUT", socket_type="NodeSocketInt")
+    iface.new_socket("Colliders", in_out="INPUT", socket_type="NodeSocketCollection")
     iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
     iface.new_socket("Residual Error", in_out="OUTPUT", socket_type="NodeSocketFloat")
 
@@ -131,26 +199,84 @@ def _build_wrapper_node_group(cloth_asset: bpy.types.NodeTree) -> bpy.types.Node
     curve_to_mesh = nodes.new("GeometryNodeCurveToMesh")
     links.new(poly_type.outputs["Curve"], curve_to_mesh.inputs["Curve"])
 
-    # Pin mask: Index % Segment Divisions == 0 selects exactly the original control
-    # points. This is a hard 1/0 weight, so pinned controls hold precisely where posed
-    # and stay stable when an empty is moved.
+    # Pin mask. "All Controls": Index % Segment Divisions == 0 selects exactly the
+    # original control points. "Ends Only": just the first and last point, leaving the
+    # span between controls free to drape and collide while the controls still shape the
+    # cable's rest path. Either way this is a hard 1/0 weight, so pinned controls hold
+    # precisely where posed and stay stable when an empty is moved.
     index = nodes.new("GeometryNodeInputIndex")
     index_mod = nodes.new("ShaderNodeMath")
     index_mod.operation = "MODULO"
     links.new(index.outputs["Index"], index_mod.inputs[0])
     links.new(gin.outputs["Segment Divisions"], index_mod.inputs[1])
 
-    is_pinned = nodes.new("FunctionNodeCompare")
-    is_pinned.data_type = "FLOAT"
-    is_pinned.operation = "EQUAL"
-    is_pinned.inputs[1].default_value = 0.0
-    is_pinned.inputs["Epsilon"].default_value = 0.01
-    links.new(index_mod.outputs["Value"], is_pinned.inputs[0])
+    on_control = nodes.new("FunctionNodeCompare")
+    on_control.data_type = "FLOAT"
+    on_control.operation = "EQUAL"
+    on_control.inputs[1].default_value = 0.0
+    on_control.inputs["Epsilon"].default_value = 0.01
+    links.new(index_mod.outputs["Value"], on_control.inputs[0])
+
+    domain_size = nodes.new("GeometryNodeAttributeDomainSize")
+    domain_size.component = "MESH"
+    links.new(curve_to_mesh.outputs["Mesh"], domain_size.inputs["Geometry"])
+
+    last_index = nodes.new("ShaderNodeMath")
+    last_index.operation = "SUBTRACT"
+    last_index.inputs[1].default_value = 1.0
+    links.new(domain_size.outputs["Point Count"], last_index.inputs[0])
+
+    is_first = nodes.new("FunctionNodeCompare")
+    is_first.data_type = "INT"
+    is_first.operation = "EQUAL"
+    is_first.inputs[1].default_value = 0
+    links.new(index.outputs["Index"], is_first.inputs[0])
+
+    is_last = nodes.new("FunctionNodeCompare")
+    is_last.data_type = "FLOAT"
+    is_last.operation = "EQUAL"
+    is_last.inputs["Epsilon"].default_value = 0.01
+    links.new(index.outputs["Index"], is_last.inputs[0])
+    links.new(last_index.outputs["Value"], is_last.inputs[1])
+
+    on_end = nodes.new("FunctionNodeBooleanMath")
+    on_end.operation = "OR"
+    links.new(is_first.outputs["Result"], on_end.inputs[0])
+    links.new(is_last.outputs["Result"], on_end.inputs[1])
+
+    # Pin Mode: 0 = All Controls, 1 = Ends Only, anything else = None.
+    mode_is_all = nodes.new("FunctionNodeCompare")
+    mode_is_all.data_type = "INT"
+    mode_is_all.operation = "EQUAL"
+    mode_is_all.inputs[1].default_value = PIN_MODE_ALL
+    links.new(gin.outputs["Pin Mode"], mode_is_all.inputs[0])
+
+    mode_is_ends = nodes.new("FunctionNodeCompare")
+    mode_is_ends.data_type = "INT"
+    mode_is_ends.operation = "EQUAL"
+    mode_is_ends.inputs[1].default_value = PIN_MODE_ENDS
+    links.new(gin.outputs["Pin Mode"], mode_is_ends.inputs[0])
+
+    use_all = nodes.new("FunctionNodeBooleanMath")
+    use_all.operation = "AND"
+    links.new(mode_is_all.outputs["Result"], use_all.inputs[0])
+    links.new(on_control.outputs["Result"], use_all.inputs[1])
+
+    use_ends = nodes.new("FunctionNodeBooleanMath")
+    use_ends.operation = "AND"
+    links.new(mode_is_ends.outputs["Result"], use_ends.inputs[0])
+    links.new(on_end.outputs["Boolean"], use_ends.inputs[1])
+
+    is_pinned = nodes.new("FunctionNodeBooleanMath")
+    is_pinned.operation = "OR"
+    links.new(use_all.outputs["Boolean"], is_pinned.inputs[0])
+    links.new(use_ends.outputs["Boolean"], is_pinned.inputs[1])
 
     cloth_node = nodes.new("GeometryNodeGroup")
     cloth_node.node_tree = cloth_asset
     links.new(curve_to_mesh.outputs["Mesh"], cloth_node.inputs["Geometry"])
-    links.new(is_pinned.outputs["Result"], cloth_node.inputs["Pin Group"])
+    links.new(is_pinned.outputs["Boolean"], cloth_node.inputs["Pin Group"])
+    links.new(gin.outputs["Colliders"], cloth_node.inputs["Effectors Collection"])
     links.new(gin.outputs["Mass"], cloth_node.inputs["Mass"])
     links.new(gin.outputs["Friction"], cloth_node.inputs["Friction"])
     links.new(gin.outputs["Collision Radius"], cloth_node.inputs["Collision Radius"])
@@ -323,3 +449,5 @@ def sync_dynamics_settings(cable_obj: bpy.types.Object, settings) -> None:
     _set_modifier_input(mod, "Substeps", settings.substeps)
     _set_modifier_input(mod, "Constraint Steps", settings.constraint_steps)
     _set_modifier_input(mod, "Segment Divisions", settings.segment_divisions)
+    _set_modifier_input(mod, "Pin Mode", PIN_MODE_VALUES.get(settings.pin_mode, PIN_MODE_ALL))
+    _set_modifier_input(mod, "Colliders", settings.collision_collection)

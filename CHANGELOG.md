@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dynamics (Phase 2): collision and pin modes.**
+  - `Pin Controls` setting with three modes. **All Controls** (default) keeps Phase 1 behavior, pinning every
+    `CTRL_*`. **Ends Only** pins just the first and last control, so middle controls still shape the cable's rest
+    path while the span between them is free to drape over and collide with scene geometry. **None** lets the whole
+    cable fall.
+  - `Collision Collection` setting plus an **Add Selected As Colliders** operator (`pcg.add_selected_colliders`),
+    which gives selected mesh objects a collider modifier built from Blender 5.2's bundled `Collider` node asset,
+    puts them in a `Cable Colliders` collection, and assigns that collection to the active cable. Colliders are
+    marked as deforming, so armature-driven characters are handled.
+  - Verified in Blender 5.2: with collision off, a draping cable puts 9 points inside a test box; with collision
+    on, 0 points are inside and the cable rests at exactly box top + collision radius.
 - `AGENTS.md` rewritten to accurately describe the current repo layout, architecture, conventions, install/test
   steps, and agent operating rules (previous version referenced non-existent `props.py`/`ui.py` files).
 - `CHANGELOG.md` added to track changes going forward.
@@ -67,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dynamics: the generated node group now carries a version marker, so a `.blend` holding a node group from an
   earlier build gets a freshly built one instead of silently reusing an incompatible tree. Cables made dynamic
   with an earlier build should be toggled off and on again (Remove Dynamics → Make Dynamic) to pick it up.
+  Bumped again for Phase 2's pin-mode and collision inputs.
 
 ## [1.0.0] - 2026-08-14 — baseline / pre-dynamics snapshot
 

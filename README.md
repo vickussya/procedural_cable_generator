@@ -74,12 +74,34 @@ Requires **Blender 5.2 LTS**. Any cable created above can be simulated without r
 2. In the panel, open **Dynamics (Experimental)** and click **Make Dynamic**.
 3. Scrub or play the timeline. The cable is pinned exactly at its `CTRL_*` controls and sags/settles between them
    under gravity — pose the controls by hand first, then let physics settle the rest.
-4. Tweak Mass / Stiffness / Bend Resistance / Damping / Friction / Collision Radius / Pin Radius live.
+4. Tweak Mass / Stiffness / Bend Resistance / Damping / Friction / Collision Radius live.
 5. **Remove Dynamics** reverts the cable to fully manual/driver-based control at any time.
 
+### Pin Controls
+
+`Pin Controls` decides which `CTRL_*` empties hold the cable while it simulates:
+
+- **All Controls** (default) — every control is pinned, so the cable keeps the pose you set.
+- **Ends Only** — only the first and last controls are pinned. The middle controls still shape the cable's rest
+  path, but the span between them is free to sag, drape and collide. Use this for cables hanging over characters
+  or props.
+- **None** — nothing is pinned and the whole cable falls.
+
+### Collision with characters and props
+
+1. Select the character/prop mesh objects the cable should hit.
+2. Click **Add Selected As Colliders**. This adds a collider modifier to each and puts them in a
+   `Cable Colliders` collection, which is assigned to the active cable's **Collision Collection**.
+3. Set the cable's **Pin Controls** to *Ends Only* (or *None*) so it has a free span to drape.
+4. Play the timeline — the cable now collides with, drapes over and is pushed by those objects.
+
+Colliders are set up as *deforming*, so animated/armature-driven characters work. Collider objects must be
+meshes. **Collision Radius** controls the cable's effective thickness for contact, independent of its visual
+`Thickness`.
+
 This uses Blender 5.2's **Cloth Dynamics (Experimental)** node asset, which Blender itself labels experimental —
-its behavior may change in future Blender point releases. Character/environment collision, bone-attachment,
-tiers/presets, and baking are not implemented yet (in progress).
+its behavior may change in future Blender point releases. Bone-attachment, tiers/presets, and baking are not
+implemented yet (in progress).
 
 ## Repo layout
 

@@ -343,3 +343,43 @@ class PCG_OT_remove_cable_dynamics(bpy.types.Operator):
         dynamics.disable_dynamics(cable)
         self.report({"INFO"}, f"Dynamics removed from '{cable.name}'")
         return {"FINISHED"}
+
+
+class PCG_OT_add_selected_colliders(bpy.types.Operator):
+    bl_idname = "pcg.add_selected_colliders"
+    bl_label = "Add Selected As Colliders"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return context.mode == "OBJECT" and any(
+            o.type == "MESH" for o in (context.selected_objects or [])
+        )
+
+    def execute(self, context: bpy.types.Context):
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        meshes = [o for o in context.selected_objects if o.type == "MESH" and o is not cable]
+        if not meshes:
+            self.report({"ERROR"}, "Select one or more mesh objects to use as colliders")
+            return {"CANCELLED"}
+
+        try:
+            collection = dynamics.ensure_collider_collection(context.scene)
+            added = 0
+            for obj in meshes:
+                if dynamics.make_collider(obj):
+                    added += 1
+                if obj.name not in collection.objects:
+                    collection.objects.link(obj)
+        except dynamics.DynamicsError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        if cable is not None and dynamics.is_dynamics_enabled(cable):
+            cable.pcg_dynamics.collision_collection = collection
+
+        self.report(
+            {"INFO"},
+            f"{len(meshes)} object(s) in '{collection.name}' ({added} newly set up as colliders)",
+        )
+        return {"FINISHED"}
