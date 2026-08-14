@@ -1,6 +1,7 @@
 # Procedural Cable Generator (Blender Add-on)
 
-Simple add-on that creates a cable as a Bezier curve driven by control empties.
+Simple add-on that creates a cable as a Bezier curve driven by control empties, and can optionally simulate it so
+it drapes over and collides with characters and props.
 
 <img width="322" height="429" alt="Screenshot 2026-04-20 134153" src="https://github.com/user-attachments/assets/fea7951d-719d-423c-b125-5c7ed3339925" />
 
@@ -11,7 +12,7 @@ and make layout/iteration faster while experimenting with cable routing and dres
 
 ## Install (classic add-on)
 
-This project is a **classic Blender add-on**.
+This project is a **classic Blender add-on** and targets **Blender 5.2 LTS**.
 
 The add-on root is the **repository folder itself** (it contains `__init__.py`).
 
@@ -19,7 +20,7 @@ The add-on root is the **repository folder itself** (it contains `__init__.py`).
 2. In Blender: `Edit > Preferences > Add-ons > Install...`
 3. Select that zip and enable **Procedural Cable Generator**.
 
-## Use (v1)
+## Use
 
 Open the UI here:
 
@@ -61,90 +62,115 @@ Create a cable with controls only (no object selection required), then move cont
 2. Set **Free Controls** (total number of control empties) and **Free Length**.
 3. Click **Create Free Cable (Cursor)**.
 
-## Legacy mode
+### Legacy mode
 
 If you already have empties named like `OUT_01`, `MID_01`, `IN_01`, you can enable **Show Legacy Tools**
 in the panel and run **Create Cables From OUT/MID/IN**.
 
-## Dynamics (Experimental, work in progress)
+### Changing a cable after it is created
 
-Requires **Blender 5.2 LTS**. Any cable created above can be simulated without recreating it:
+The **Cable Settings** at the top of the panel apply to *newly created* cables only — they do not retro-edit
+existing ones. To change a cable that already exists:
+
+| What you want | Static cable | Dynamic cable |
+|---|---|---|
+| Thickness | `Object Data > Geometry > Bevel > Depth` | **Appearance > Thickness** |
+| Cross-section roundness | `Object Data > Geometry > Bevel > Resolution` | **Appearance > Profile Resolution** |
+| Smoothness along its length | `Object Data > Shape > Resolution Preview U` | **Advanced > Divisions Per Segment** |
+| Shape | Move the `CTRL_*` empties | Move the `CTRL_*` empties |
+
+On a dynamic cable, *Divisions Per Segment* sets both simulation resolution and rendered smoothness, because the
+cable is rebuilt from its simulated points. The Appearance settings also write back to the curve, so a cable keeps
+its look if you later remove dynamics.
+
+## Dynamics (Experimental)
+
+Requires **Blender 5.2 LTS**. Any cable created above can be simulated without recreating it.
+
+This is built on Blender 5.2's **Cloth Dynamics (Experimental)** node asset, which Blender itself labels
+experimental — its behavior may change in future Blender point releases.
+
+### Quick start
 
 1. Select a cable's curve object (e.g. `CABLE_Cable`).
 2. In the panel, open **Dynamics (Experimental)** and click **Make Dynamic**.
-3. Scrub or play the timeline. The cable is pinned exactly at its `CTRL_*` controls and sags/settles between them
-   under gravity — pose the controls by hand first, then let physics settle the rest.
-4. Tweak Mass / Stiffness / Bend Resistance / Damping / Friction / Collision Radius live.
+3. Go to **frame 1** and press **Play**. The cable is pinned at its `CTRL_*` controls and sags between them under
+   gravity — pose the controls by hand, then let physics settle the rest.
+4. Tweak the settings live while it plays.
 5. **Remove Dynamics** reverts the cable to fully manual/driver-based control at any time.
 
-### Changing a cable's look
+> Because this is a simulation, **play forward from frame 1** rather than scrubbing. The solver carries state
+> between frames, so jumping around the timeline shows partially-solved results.
 
-The **Cable Settings** at the top of the panel (Thickness, Bevel Resolution) apply to *newly created* cables only.
-To change a cable that already exists:
+### Settings
 
-- **Dynamic cable** — use **Thickness** and **Profile Resolution** under *Appearance* in the Dynamics panel.
-  These also write back to the curve, so the cable keeps its look if you remove dynamics later.
-- **Static cable** — use Blender's own curve settings in `Properties > Object Data (curve icon) > Geometry >
-  Bevel`: **Depth** for thickness, **Resolution** for cross-section roundness.
+**Appearance** — *Thickness*, *Profile Resolution*. Purely visual; see the table above.
 
-For smoothness *along* the cable's length:
+**Physics**
 
-- **Dynamic cable** — raise **Divisions Per Segment** (Advanced). This controls both the simulation resolution and
-  the rendered smoothness, since the cable is rebuilt from simulated points.
-- **Static cable** — raise `Object Data > Shape > Resolution Preview U`.
+- **Mass** — heavier cables sag more and carry more momentum.
+- **Stiffness** — resistance to stretching along the cable's length.
+- **Bend Resistance** — resistance to kinking. Low values give floppy wire, high values stiff hose.
+- **Damping** — how quickly motion settles. Raise it if a cable keeps swinging.
+- **Friction** — how much the cable grips surfaces it slides across.
+- **Collision Radius** — the cable's effective thickness for contact, independent of its visual *Thickness*.
+
+**Advanced** — raise with care, as these cost performance.
+
+- **Substeps** / **Constraint Steps** — solver accuracy per frame.
+- **Divisions Per Segment** — simulated points between each pair of controls.
 
 ### Pin Controls
 
-`Pin Controls` decides which `CTRL_*` empties hold the cable while it simulates:
+Decides which `CTRL_*` empties hold the cable while it simulates:
 
 - **All Controls** (default) — every control is pinned, so the cable keeps the pose you set.
-- **Ends Only** — only the first and last controls are pinned. The middle controls still shape the cable's rest
-  path, but the span between them is free to sag, drape and collide. Use this for cables hanging over characters
-  or props.
+- **Ends Only** — only the first and last controls are pinned. Middle controls still shape the cable's rest path,
+  but the span between them is free to sag, drape and collide. **Use this for cables interacting with anything.**
 - **None** — nothing is pinned and the whole cable falls.
 
 ### Collision with characters and props
 
 1. Select the character/prop mesh objects the cable should hit.
 2. Click **Add Selected As Colliders**, under *Collision Setup* at the bottom of the panel. This adds a collider
-   modifier to each and puts them in a `Cable Colliders` collection.
-3. Select the cable and set its **Collision Collection** to `Cable Colliders`.
-   (Tip: if you select the collider meshes *and* the cable, with the cable active, step 3 happens automatically.)
-4. Set the cable's **Pin Controls** to *Ends Only* (or *None*) so it has a free span to drape.
-5. Play the timeline — the cable now collides with, drapes over and is pushed by those objects.
+   modifier to each and puts them in a `Cable Colliders` collection, which is assigned to your dynamic cables.
+3. Set the cable's **Pin Controls** to *Ends Only* (or *None*) so it has a free span to drape.
+4. Go to frame 1 and play — the cable now collides with, drapes over and is pushed by those objects.
 
-Colliders are set up as *deforming*, so animated/armature-driven characters work. Collider objects must be
-meshes. **Collision Radius** controls the cable's effective thickness for contact, independent of its visual
-`Thickness`. Re-running **Add Selected As Colliders** updates existing colliders, so you can use the operator's
-redo panel (`F9`) to retune **Margin** and **Friction** — raise Margin if cables sink into thin or fast-moving
-geometry.
+The panel warns you if a cable has no colliders assigned, or has every control pinned — the two states in which
+collision silently does nothing.
+
+Colliders must be meshes, and are set up as *deforming*, so animated and armature-driven characters work.
+Re-running **Add Selected As Colliders** updates existing colliders, so you can use the operator's redo panel
+(`F9`) to retune **Margin** and **Friction** — raise Margin if cables sink into thin or fast-moving geometry.
 
 ### Don't animate a pinned control into geometry
 
-A pinned control is a **hard constraint**: the cable is forced to that exact point. Collision cannot override it,
-so animating a pinned control into a mesh drags the cable straight through. This is a limitation of pinning, not
-a bug — measured at 11 cable points up to 0.45 m inside a test mesh.
+A pinned control is a **hard constraint**: the cable is forced to that exact point, and collision cannot override
+it. Animating a pinned control into a mesh therefore drags the cable straight through it. This is a limitation of
+pinning rather than a bug, and no amount of solver tuning avoids it.
 
-To see a cable interact with geometry, do one of these instead:
+To make a cable interact with geometry, do one of these instead:
 
 - **Let it fall.** Set **Pin Controls** to *Ends Only*, place the middle controls above the object, and play from
-  frame 1. Gravity drapes the cable onto the mesh — no animation needed.
-- **Animate the character, not the cable.** Set the character up as a collider and animate *it* through the
-  draped cable. This is the intended workflow, and it is stable even at speed (measured: zero penetration with a
-  collider crossing 36 m in 60 frames).
+  frame 1. Gravity drapes the cable onto the mesh — no animation needed. This is the easiest way to test.
+- **Animate the character, not the cable.** Set the character up as a collider and animate *it* through the draped
+  cable. This is the intended workflow and stays stable even at speed.
 
-Because this is a simulation, always **play forward from frame 1** rather than scrubbing — the solver carries
-state between frames, so jumping around the timeline shows partially-solved results.
+### Not implemented yet
 
-This uses Blender 5.2's **Cloth Dynamics (Experimental)** node asset, which Blender itself labels experimental —
-its behavior may change in future Blender point releases. Bone-attachment, tiers/presets, and baking are not
-implemented yet (in progress).
+Bone attachment, cable presets, Hero/Background performance tiers, baking, and self-collision are still in
+progress.
 
 ## Repo layout
 
 - `__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
-- `operators.py` Operators for creating cables.
-- `properties.py` Scene settings and UI properties.
+- `operators.py` Operators for creating cables and setting up dynamics/colliders.
+- `properties.py` Scene settings, per-cable dynamics settings, and UI properties.
 - `panel.py` 3D Viewport sidebar panel.
 - `utils.py` Shared utility functions.
 - `dynamics.py` Geometry Nodes cloth-dynamics setup for the Dynamics feature.
+
+## License
+
+GPL-3.0. See [LICENSE](LICENSE).
