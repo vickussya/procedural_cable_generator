@@ -2,9 +2,11 @@ import math
 
 import bpy
 
+from . import dynamics
 from .utils import (
     create_cable_curve,
     ensure_root_collection,
+    is_cable_curve_object,
     make_empty,
     new_child_collection,
     offset_dir_for_slack,
@@ -289,4 +291,55 @@ class PCG_OT_create_cables_from_out_mid_in(bpy.types.Operator):
             return {"CANCELLED"}
 
         self.report({"INFO"}, f"Created {created} cable(s) from named controls")
+        return {"FINISHED"}
+
+
+class PCG_OT_make_cable_dynamic(bpy.types.Operator):
+    bl_idname = "pcg.make_cable_dynamic"
+    bl_label = "Make Dynamic"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        return (
+            context.mode == "OBJECT"
+            and cable is not None
+            and not dynamics.is_dynamics_enabled(cable)
+        )
+
+    def execute(self, context: bpy.types.Context):
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        if cable is None:
+            self.report({"ERROR"}, "No cable curve found for the active object")
+            return {"CANCELLED"}
+
+        try:
+            dynamics.enable_dynamics(cable, cable.pcg_dynamics)
+        except dynamics.DynamicsError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        self.report({"INFO"}, f"Dynamics enabled on '{cable.name}'")
+        return {"FINISHED"}
+
+
+class PCG_OT_remove_cable_dynamics(bpy.types.Operator):
+    bl_idname = "pcg.remove_cable_dynamics"
+    bl_label = "Remove Dynamics"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        return context.mode == "OBJECT" and dynamics.is_dynamics_enabled(cable)
+
+    def execute(self, context: bpy.types.Context):
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        if cable is None:
+            self.report({"ERROR"}, "No cable curve found for the active object")
+            return {"CANCELLED"}
+
+        dynamics.disable_dynamics(cable)
+        self.report({"INFO"}, f"Dynamics removed from '{cable.name}'")
         return {"FINISHED"}

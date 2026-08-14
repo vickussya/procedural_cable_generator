@@ -1,6 +1,8 @@
 import bpy
 from bpy.props import BoolProperty, EnumProperty, FloatProperty, IntProperty, StringProperty
 
+from . import dynamics
+
 
 class PCG_Settings(bpy.types.PropertyGroup):
     cable_name: StringProperty(
@@ -104,3 +106,99 @@ class PCG_Settings(bpy.types.PropertyGroup):
     legacy_out_prefix: StringProperty(name="OUT Prefix", default="OUT_")
     legacy_mid_prefix: StringProperty(name="MID Prefix", default="MID_")
     legacy_in_prefix: StringProperty(name="IN Prefix", default="IN_")
+
+
+def _update_dynamics_settings(self, context: bpy.types.Context) -> None:
+    obj = self.id_data
+    if dynamics.is_dynamics_enabled(obj):
+        dynamics.sync_dynamics_settings(obj, self)
+
+
+class PCG_DynamicsSettings(bpy.types.PropertyGroup):
+    """Per-cable dynamics settings, active on a CABLE_* curve object once Dynamics is enabled."""
+
+    mass: FloatProperty(
+        name="Mass",
+        default=1.0,
+        min=0.001,
+        soft_max=20.0,
+        description="Simulated mass of the cable; higher values add weight and momentum",
+        update=_update_dynamics_settings,
+    )
+
+    stiffness: FloatProperty(
+        name="Stiffness",
+        default=0.8,
+        min=0.0,
+        max=1.0,
+        description="Resistance to stretching along the cable's length (0 = very stretchy, 1 = rigid)",
+        update=_update_dynamics_settings,
+    )
+
+    bend: FloatProperty(
+        name="Bend Resistance",
+        default=0.5,
+        min=0.0,
+        max=1.0,
+        description="Resistance to bending/kinking (0 = very floppy, 1 = stiff)",
+        update=_update_dynamics_settings,
+    )
+
+    damping: FloatProperty(
+        name="Damping",
+        default=1.0,
+        min=0.0,
+        soft_max=10.0,
+        description="Linear damping applied to the simulation; higher values settle faster with less swing",
+        update=_update_dynamics_settings,
+    )
+
+    friction: FloatProperty(
+        name="Friction",
+        default=0.5,
+        min=0.0,
+        max=1.0,
+        description="Surface friction used against colliders",
+        update=_update_dynamics_settings,
+    )
+
+    collision_radius: FloatProperty(
+        name="Collision Radius",
+        default=0.02,
+        min=0.001,
+        soft_max=0.5,
+        description="Effective thickness used for collision purposes (independent of the visual bevel thickness)",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_update_dynamics_settings,
+    )
+
+    substeps: IntProperty(
+        name="Substeps",
+        default=5,
+        min=1,
+        soft_max=20,
+        description="Simulation substeps per frame; higher is more stable but slower. Raise with care",
+        update=_update_dynamics_settings,
+    )
+
+    constraint_steps: IntProperty(
+        name="Constraint Steps",
+        default=15,
+        min=1,
+        soft_max=50,
+        description="Constraint solver iterations per substep; higher is more stable but slower. Raise with care",
+        update=_update_dynamics_settings,
+    )
+
+    segment_divisions: IntProperty(
+        name="Divisions Per Segment",
+        default=8,
+        min=1,
+        soft_max=32,
+        description=(
+            "Simulated points generated between each pair of CTRL_* controls. "
+            "Higher gives smoother sag at a higher cost"
+        ),
+        update=_update_dynamics_settings,
+    )

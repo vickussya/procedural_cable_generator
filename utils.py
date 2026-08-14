@@ -7,6 +7,16 @@ from mathutils import Matrix, Vector
 ROOT_COLLECTION_NAME = "Procedural Cables"
 
 
+def is_cable_curve_object(obj: bpy.types.Object | None) -> bool:
+    if obj is None or obj.type != "CURVE":
+        return False
+    curve_data = obj.data
+    if len(curve_data.splines) != 1:
+        return False
+    spline = curve_data.splines[0]
+    return spline.type == "BEZIER" and len(spline.bezier_points) >= 2
+
+
 def unique_name(base: str, existing: set[str]) -> str:
     if base not in existing:
         return base

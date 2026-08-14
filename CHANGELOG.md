@@ -19,10 +19,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   should be written as plain functions separate from `bpy`/UI glue code, so headless unit tests can be added later
   without a refactor.
 
+### Added
+- **Dynamics (Phase 1, Experimental):** new `dynamics.py` module and "Make Dynamic"/"Remove Dynamics" operators
+  (`pcg.make_cable_dynamic`, `pcg.remove_cable_dynamics`) let any existing cable curve be simulated with Blender
+  5.2's node-based Cloth Dynamics (Experimental) solver, without recreating the cable.
+  - Cables are pinned at their existing `CTRL_*` control empties (via a small auxiliary hooked anchor mesh) and
+    settle/sag between them under gravity, mass, stiffness, bend, damping, and friction — enabling a "pose by hand,
+    then let physics settle" workflow. Pinned controls stay exactly where posed.
+  - The simulated result is converted back to curve geometry inside the same node graph, so the cable's existing
+    `Thickness`/`Bevel Resolution` settings keep rendering the tube — no separate proxy mesh is rendered and no
+    per-frame Python read-back is used live (read-back is reserved for a future explicit bake operator).
+  - New per-cable "Dynamics (Experimental)" panel section (`View3D > Sidebar > Cable`) exposing Mass, Stiffness,
+    Bend Resistance, Damping, Friction, Collision Radius, Pin Radius, and an Advanced group (Substeps, Constraint
+    Steps, Simulation Resolution).
+  - `utils.is_cable_curve_object()` helper added to identify add-on-generated cable curves for operator polling.
+
+### Fixed
+- **Dynamics: controls did not actually hold the cable.** Pin weights were derived from a `Map Range` falloff on
+  world-space proximity, which only reaches full strength for a point sitting exactly on a control — so every pin
+  was partial. Moving a control 2 m moved the cable only ~0.36 m, kinks appeared at the moved control, and the
+  cable eventually sagged away entirely (measured collapse to z=0.18). The simulation is now built from the pin
+  anchor polyline and subdivided so controls land on known indices, letting them be pinned at full strength by
+  index (`Index % Divisions == 0`). Controls now hold to within a few millimetres, including under repeated
+  dragging.
+- **Dynamics: the panel section and its operators disappeared while posing.** Both were gated on the *active*
+  object being the cable curve, so selecting a `CTRL_*` empty — exactly what you do to pose a cable — hid the
+  Dynamics section and disabled its buttons. Added `dynamics.resolve_cable_for_object()`, so the panel and both
+  operators now resolve the cable from either the curve or any of its controls.
+- **Dynamics: mid-slider Stiffness/Bend values visibly kinked the cable.** These map to XPBD *compliance*, where
+  usable cable behavior lives below ~0.06 and ~0.26 already collapses into hard kinks, so the previous linear
+  `1 - slider` mapping spent most of its range in unusable territory. Now remapped as `(1 - slider)^3 * 0.1`.
+  Worst-case bend across the whole slider range dropped from 161° to 22°.
+- `AGENTS.md` rewritten to accurately describe the current repo layout, architecture, conventions, install/test
+  steps, and agent operating rules (previous version referenced non-existent `props.py`/`ui.py` files).
+- `CHANGELOG.md` added to track changes going forward.
+- `AGENTS.md` now documents a testing-strategy convention: new logic (especially upcoming cable dynamics math)
+  should be written as plain functions separate from `bpy`/UI glue code, so headless unit tests can be added later
+  without a refactor.
+
 ### Changed
 - `bl_info["blender"]` minimum bumped from `(3, 0, 0)` to `(5, 2, 0)` — the project now targets Blender 5.2 LTS
   only, since upcoming dynamics work depends on 5.2's node-based physics and no backward compatibility is needed.
   `bl_info["version"]` left at `1.0.0` (evaluated and not considered an "early" value worth bumping on its own).
+- Dynamics: replaced the `Pin Radius` and `Simulation Resolution` settings with a single `Divisions Per Segment`
+  control. Pin Radius no longer has any meaning now that pinning is index-based rather than proximity-based, and
+  resolution is derived from the divisions between each pair of controls.
+- Dynamics: the generated node group now carries a version marker, so a `.blend` holding a node group from an
+  earlier build gets a freshly built one instead of silently reusing an incompatible tree. Cables made dynamic
+  with an earlier build should be toggled off and on again (Remove Dynamics → Make Dynamic) to pick it up.
 
 ## [1.0.0] - 2026-08-14 — baseline / pre-dynamics snapshot
 

@@ -66,6 +66,21 @@ Create a cable with controls only (no object selection required), then move cont
 If you already have empties named like `OUT_01`, `MID_01`, `IN_01`, you can enable **Show Legacy Tools**
 in the panel and run **Create Cables From OUT/MID/IN**.
 
+## Dynamics (Experimental, work in progress)
+
+Requires **Blender 5.2 LTS**. Any cable created above can be simulated without recreating it:
+
+1. Select a cable's curve object (e.g. `CABLE_Cable`).
+2. In the panel, open **Dynamics (Experimental)** and click **Make Dynamic**.
+3. Scrub or play the timeline. The cable is pinned exactly at its `CTRL_*` controls and sags/settles between them
+   under gravity — pose the controls by hand first, then let physics settle the rest.
+4. Tweak Mass / Stiffness / Bend Resistance / Damping / Friction / Collision Radius / Pin Radius live.
+5. **Remove Dynamics** reverts the cable to fully manual/driver-based control at any time.
+
+This uses Blender 5.2's **Cloth Dynamics (Experimental)** node asset, which Blender itself labels experimental —
+its behavior may change in future Blender point releases. Character/environment collision, bone-attachment,
+tiers/presets, and baking are not implemented yet (in progress).
+
 ## Repo layout
 
 - `__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
@@ -73,3 +88,4 @@ in the panel and run **Create Cables From OUT/MID/IN**.
 - `properties.py` Scene settings and UI properties.
 - `panel.py` 3D Viewport sidebar panel.
 - `utils.py` Shared utility functions.
+- `dynamics.py` Geometry Nodes cloth-dynamics setup for the Dynamics feature.

@@ -1,11 +1,15 @@
 import bpy
 
+from . import dynamics
 from .operators import (
     PCG_OT_create_cable_from_object_chain,
     PCG_OT_create_cable_from_selection,
     PCG_OT_create_cables_from_out_mid_in,
     PCG_OT_create_free_cable,
+    PCG_OT_make_cable_dynamic,
+    PCG_OT_remove_cable_dynamics,
 )
+from .utils import is_cable_curve_object
 
 
 class PCG_PT_cable_panel(bpy.types.Panel):
@@ -59,3 +63,35 @@ class PCG_PT_cable_panel(bpy.types.Panel):
 
         layout.separator()
         layout.label(text="Tip: move CTRL empties to shape cables.")
+
+        active = context.active_object
+        cable = dynamics.resolve_cable_for_object(active)
+        if cable is not None:
+            layout.separator()
+            box = layout.box()
+            header = box.row()
+            header.label(text="Dynamics (Experimental):", icon="PHYSICS")
+            if cable is not active:
+                # Active object is one of this cable's controls, so name the cable it drives.
+                box.label(text=f"Cable: {cable.name}", icon="OUTLINER_OB_CURVE")
+
+            if dynamics.is_dynamics_enabled(cable):
+                dyn = cable.pcg_dynamics
+                col = box.column(align=True)
+                col.prop(dyn, "mass")
+                col.prop(dyn, "stiffness")
+                col.prop(dyn, "bend")
+                col.prop(dyn, "damping")
+                col.prop(dyn, "friction")
+                col.prop(dyn, "collision_radius")
+
+                adv = box.box()
+                adv.label(text="Advanced (raise with care):")
+                adv.prop(dyn, "substeps")
+                adv.prop(dyn, "constraint_steps")
+                adv.prop(dyn, "segment_divisions")
+
+                box.operator(PCG_OT_remove_cable_dynamics.bl_idname, icon="X")
+            else:
+                box.label(text="Uses Blender 5.2's experimental node-based cloth solver.")
+                box.operator(PCG_OT_make_cable_dynamic.bl_idname, icon="PHYSICS")
