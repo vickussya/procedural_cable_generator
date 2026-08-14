@@ -121,8 +121,38 @@ def _update_dynamics_settings(self, context: bpy.types.Context) -> None:
         dynamics.sync_dynamics_settings(obj, self)
 
 
+def _update_profile(self, context: bpy.types.Context) -> None:
+    # Mirror onto the curve's own bevel so the cable keeps the same thickness if dynamics
+    # is later removed, and so both paths stay driven by this one setting.
+    obj = self.id_data
+    if obj.type == "CURVE":
+        obj.data.bevel_depth = self.thickness
+        obj.data.bevel_resolution = self.profile_resolution
+    _update_dynamics_settings(self, context)
+
+
 class PCG_DynamicsSettings(bpy.types.PropertyGroup):
     """Per-cable dynamics settings, active on a CABLE_* curve object once Dynamics is enabled."""
+
+    thickness: FloatProperty(
+        name="Thickness",
+        default=0.008,
+        min=0.0,
+        soft_max=0.2,
+        description="Visual radius of the cable tube",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_update_profile,
+    )
+
+    profile_resolution: IntProperty(
+        name="Profile Resolution",
+        default=3,
+        min=0,
+        max=12,
+        description="Roundness of the cable's cross-section",
+        update=_update_profile,
+    )
 
     mass: FloatProperty(
         name="Mass",

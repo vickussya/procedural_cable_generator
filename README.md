@@ -77,6 +77,22 @@ Requires **Blender 5.2 LTS**. Any cable created above can be simulated without r
 4. Tweak Mass / Stiffness / Bend Resistance / Damping / Friction / Collision Radius live.
 5. **Remove Dynamics** reverts the cable to fully manual/driver-based control at any time.
 
+### Changing a cable's look
+
+The **Cable Settings** at the top of the panel (Thickness, Bevel Resolution) apply to *newly created* cables only.
+To change a cable that already exists:
+
+- **Dynamic cable** — use **Thickness** and **Profile Resolution** under *Appearance* in the Dynamics panel.
+  These also write back to the curve, so the cable keeps its look if you remove dynamics later.
+- **Static cable** — use Blender's own curve settings in `Properties > Object Data (curve icon) > Geometry >
+  Bevel`: **Depth** for thickness, **Resolution** for cross-section roundness.
+
+For smoothness *along* the cable's length:
+
+- **Dynamic cable** — raise **Divisions Per Segment** (Advanced). This controls both the simulation resolution and
+  the rendered smoothness, since the cable is rebuilt from simulated points.
+- **Static cable** — raise `Object Data > Shape > Resolution Preview U`.
+
 ### Pin Controls
 
 `Pin Controls` decides which `CTRL_*` empties hold the cable while it simulates:

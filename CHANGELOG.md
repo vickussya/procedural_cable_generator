@@ -52,6 +52,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sink into thin or fast-moving geometry.
 
 ### Fixed
+- **Dynamics: dynamic cables rendered with no thickness at all.** Blender only applies a curve object's native
+  bevel to geometry originating from that object's own curve data, and a dynamic cable is rebuilt from its pin
+  anchor object, so the bevel was silently dropped and the cable displayed as a zero-radius line regardless of its
+  Thickness. The cable is now beveled inside the node group, and new **Thickness** and **Profile Resolution**
+  settings appear under *Appearance* in the Dynamics panel. They adopt the cable's existing bevel when dynamics is
+  enabled and write back to it, so switching dynamics on or off no longer changes how thick a cable looks.
+
 - **Dynamics: animating a pinned control dragged the cable through colliders.** A pinned control is a hard
   positional constraint that collision cannot override, so this is inherent rather than a solver bug — measured
   at 11 cable points up to 0.45 m inside a test mesh. The panel warning now says so explicitly, and the README

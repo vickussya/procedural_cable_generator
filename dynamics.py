@@ -12,7 +12,7 @@ DYNAMICS_MODIFIER_NAME = "PCG Dynamics"
 
 # Bumped whenever the wrapper node group's layout changes, so .blend files holding an
 # older group get a freshly built one instead of silently reusing an incompatible tree.
-WRAPPER_GROUP_VERSION = 3
+WRAPPER_GROUP_VERSION = 4
 WRAPPER_VERSION_KEY = "pcg_wrapper_version"
 
 # Upper bound for the XPBD compliance values fed to Cloth Dynamics; see compliance_from().
@@ -174,6 +174,8 @@ def _build_wrapper_node_group(cloth_asset: bpy.types.NodeTree) -> bpy.types.Node
     iface.new_socket("Segment Divisions", in_out="INPUT", socket_type="NodeSocketInt")
     iface.new_socket("Pin Mode", in_out="INPUT", socket_type="NodeSocketInt")
     iface.new_socket("Colliders", in_out="INPUT", socket_type="NodeSocketCollection")
+    iface.new_socket("Thickness", in_out="INPUT", socket_type="NodeSocketFloat")
+    iface.new_socket("Profile Resolution", in_out="INPUT", socket_type="NodeSocketInt")
     iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
     iface.new_socket("Residual Error", in_out="OUTPUT", socket_type="NodeSocketFloat")
 
@@ -329,13 +331,37 @@ def _build_wrapper_node_group(cloth_asset: bpy.types.NodeTree) -> bpy.types.Node
     compliance_from("Stiffness", "Stretchiness")
     compliance_from("Bend", "Bendiness")
 
-    # Convert the simulated point/edge mesh back to a curve so the object's own
-    # Bevel Depth/Resolution (set by utils.create_cable_curve) still render the tube -
-    # no separate profile geometry or per-frame Python read-back is needed for display.
+    # Convert the simulated point/edge mesh back to a curve, then bevel it here rather
+    # than relying on the object's own Bevel Depth. Blender only applies a curve object's
+    # native bevel to geometry originating from its own curve data, and this cable is
+    # rebuilt from the pin anchor object, so the native bevel is dropped - leaving the
+    # cable rendering as a zero-thickness line. Beveling in the tree restores the tube.
     mesh_to_curve = nodes.new("GeometryNodeMeshToCurve")
     links.new(cloth_node.outputs["Geometry"], mesh_to_curve.inputs["Mesh"])
 
-    links.new(mesh_to_curve.outputs["Curve"], gout.inputs["Geometry"])
+    # Blender's bevel_resolution counts subdivisions per quarter turn, so a full profile
+    # circle has (resolution + 1) * 4 segments.
+    profile_segments = nodes.new("ShaderNodeMath")
+    profile_segments.operation = "ADD"
+    profile_segments.inputs[1].default_value = 1.0
+    links.new(gin.outputs["Profile Resolution"], profile_segments.inputs[0])
+
+    profile_resolution = nodes.new("ShaderNodeMath")
+    profile_resolution.operation = "MULTIPLY"
+    profile_resolution.inputs[1].default_value = 4.0
+    links.new(profile_segments.outputs["Value"], profile_resolution.inputs[0])
+
+    profile = nodes.new("GeometryNodeCurvePrimitiveCircle")
+    profile.mode = "RADIUS"
+    links.new(profile_resolution.outputs["Value"], profile.inputs["Resolution"])
+    links.new(gin.outputs["Thickness"], profile.inputs["Radius"])
+
+    tube = nodes.new("GeometryNodeCurveToMesh")
+    tube.inputs["Fill Caps"].default_value = True
+    links.new(mesh_to_curve.outputs["Curve"], tube.inputs["Curve"])
+    links.new(profile.outputs["Curve"], tube.inputs["Profile Curve"])
+
+    links.new(tube.outputs["Mesh"], gout.inputs["Geometry"])
     links.new(cloth_node.outputs["Residual Error"], gout.inputs["Residual Error"])
 
     return ng
@@ -429,6 +455,11 @@ def enable_dynamics(cable_obj: bpy.types.Object, settings) -> None:
     wrapper_group = get_or_create_wrapper_group()
     anchor_obj = _create_pin_anchor_object(cable_obj, controls)
 
+    # Adopt the cable's existing bevel settings so enabling dynamics does not change how
+    # thick it looks; from here on the panel's Thickness drives both.
+    settings.thickness = cable_obj.data.bevel_depth
+    settings.profile_resolution = cable_obj.data.bevel_resolution
+
     mod = cable_obj.modifiers.new(DYNAMICS_MODIFIER_NAME, type="NODES")
     mod.node_group = wrapper_group
     _set_modifier_input(mod, "Pin Anchors", anchor_obj)
@@ -478,3 +509,5 @@ def sync_dynamics_settings(cable_obj: bpy.types.Object, settings) -> None:
     _set_modifier_input(mod, "Segment Divisions", settings.segment_divisions)
     _set_modifier_input(mod, "Pin Mode", PIN_MODE_VALUES.get(settings.pin_mode, PIN_MODE_ALL))
     _set_modifier_input(mod, "Colliders", settings.collision_collection)
+    _set_modifier_input(mod, "Thickness", settings.thickness)
+    _set_modifier_input(mod, "Profile Resolution", settings.profile_resolution)
