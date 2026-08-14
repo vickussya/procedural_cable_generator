@@ -46,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `utils.is_cable_curve_object()` helper added to identify add-on-generated cable curves for operator polling.
 
 ### Fixed
+- **Dynamics: colliders were set up but never actually used.** Assigning the collider collection to a cable was a
+  manual step that was easy to miss, so cables silently passed through colliders that looked correctly configured.
+  Now `Add Selected As Colliders` adopts the colliders on any dynamic cable that has no collection chosen yet
+  (cables with an explicit choice are left alone), `Make Dynamic` picks up an existing `Cable Colliders` collection
+  by default, and the panel warns when a cable has no colliders assigned or has every control pinned — the two
+  states in which collision silently does nothing.
 - **Dynamics: the "Add Selected As Colliders" button was unreachable.** It sat inside the Dynamics section, which
   only draws when a cable (or one of its controls) is active — but setting up colliders means selecting the
   character/prop meshes, so the button disappeared exactly when it was needed. It now lives in its own

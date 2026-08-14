@@ -413,6 +413,14 @@ def enable_dynamics(cable_obj: bpy.types.Object, settings) -> None:
     mod = cable_obj.modifiers.new(DYNAMICS_MODIFIER_NAME, type="NODES")
     mod.node_group = wrapper_group
     _set_modifier_input(mod, "Pin Anchors", anchor_obj)
+
+    # If colliders have already been set up in this file, use them by default rather than
+    # leaving the cable silently non-colliding until the field is filled in by hand.
+    if settings.collision_collection is None:
+        existing_colliders = bpy.data.collections.get(COLLIDER_COLLECTION_NAME)
+        if existing_colliders is not None:
+            settings.collision_collection = existing_colliders
+
     sync_dynamics_settings(cable_obj, settings)
 
 

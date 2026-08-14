@@ -88,12 +88,22 @@ class PCG_PT_cable_panel(bpy.types.Panel):
 
                 box.separator()
                 box.prop(dyn, "pin_mode")
-                if dyn.pin_mode == "ALL":
-                    box.label(text="Ends Only frees the cable to drape.", icon="INFO")
 
                 col = box.column(align=True)
                 col.label(text="Collision Collection:")
                 col.prop(dyn, "collision_collection", text="")
+
+                # The two ways collision silently does nothing: no colliders assigned, or
+                # every control pinned so the cable is held rigid and cannot drape onto them.
+                if dyn.collision_collection is None:
+                    warn = box.column(align=True)
+                    warn.label(text="No colliders assigned.", icon="ERROR")
+                    warn.label(text="Use Collision Setup below.")
+                elif dyn.pin_mode == "ALL":
+                    warn = box.column(align=True)
+                    warn.label(text="All controls pinned:", icon="ERROR")
+                    warn.label(text="cable is held rigid and cannot")
+                    warn.label(text="drape. Use Ends Only to collide.")
 
                 adv = box.box()
                 adv.label(text="Advanced (raise with care):")

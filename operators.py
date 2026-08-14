@@ -380,10 +380,24 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
         if cable is not None and dynamics.is_dynamics_enabled(cable):
             cable.pcg_dynamics.collision_collection = collection
             self.report({"INFO"}, f"{summary}; assigned to '{cable.name}'")
+            return {"FINISHED"}
+
+        # Setting up colliders means the collider meshes are selected, not a cable, so
+        # adopt these colliders on any dynamic cable that has none chosen yet. Cables with
+        # a collection already set are left alone.
+        adopted = [
+            obj
+            for obj in bpy.data.objects
+            if dynamics.is_dynamics_enabled(obj) and obj.pcg_dynamics.collision_collection is None
+        ]
+        for obj in adopted:
+            obj.pcg_dynamics.collision_collection = collection
+
+        if adopted:
+            self.report({"INFO"}, f"{summary}; assigned to {len(adopted)} cable(s)")
         else:
-            # Selecting collider meshes means no cable is active, so it cannot be assigned here.
             self.report(
                 {"INFO"},
-                f"{summary}. Now select the cable and set Collision Collection to '{collection.name}'",
+                f"{summary}. Set a cable's Collision Collection to '{collection.name}' to use them",
             )
         return {"FINISHED"}
