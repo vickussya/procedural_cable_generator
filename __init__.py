@@ -2,7 +2,7 @@ bl_info = {
     "name": "Procedural Cable Generator",
     "author": "Vickussya",
     "version": (1, 0, 0),
-    "blender": (3, 0, 0),
+    "blender": (5, 2, 0),
     "location": "View3D > Sidebar > Cable",
     "description": "Generate editable cable curves driven by control empties.",
     "category": "Object",
