@@ -92,9 +92,8 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                     box.label(text="Ends Only frees the cable to drape.", icon="INFO")
 
                 col = box.column(align=True)
-                col.label(text="Collision:")
+                col.label(text="Collision Collection:")
                 col.prop(dyn, "collision_collection", text="")
-                col.operator(PCG_OT_add_selected_colliders.bl_idname, icon="MOD_PHYSICS")
 
                 adv = box.box()
                 adv.label(text="Advanced (raise with care):")
@@ -106,3 +105,12 @@ class PCG_PT_cable_panel(bpy.types.Panel):
             else:
                 box.label(text="Uses Blender 5.2's experimental node-based cloth solver.")
                 box.operator(PCG_OT_make_cable_dynamic.bl_idname, icon="PHYSICS")
+
+        # Kept outside the cable-gated section above: setting up colliders means selecting
+        # the character/prop meshes, at which point no cable is active and that section is
+        # hidden - which would hide this button exactly when it is needed.
+        layout.separator()
+        collider_box = layout.box()
+        collider_box.label(text="Collision Setup:", icon="MOD_PHYSICS")
+        collider_box.operator(PCG_OT_add_selected_colliders.bl_idname, icon="MOD_PHYSICS")
+        collider_box.label(text="Select character/prop meshes, then click.")

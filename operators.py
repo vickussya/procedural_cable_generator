@@ -375,11 +375,15 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
             self.report({"ERROR"}, str(exc))
             return {"CANCELLED"}
 
+        summary = f"{len(meshes)} object(s) in '{collection.name}' ({added} newly set up as colliders)"
+
         if cable is not None and dynamics.is_dynamics_enabled(cable):
             cable.pcg_dynamics.collision_collection = collection
-
-        self.report(
-            {"INFO"},
-            f"{len(meshes)} object(s) in '{collection.name}' ({added} newly set up as colliders)",
-        )
+            self.report({"INFO"}, f"{summary}; assigned to '{cable.name}'")
+        else:
+            # Selecting collider meshes means no cable is active, so it cannot be assigned here.
+            self.report(
+                {"INFO"},
+                f"{summary}. Now select the cable and set Collision Collection to '{collection.name}'",
+            )
         return {"FINISHED"}

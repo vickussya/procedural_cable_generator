@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `utils.is_cable_curve_object()` helper added to identify add-on-generated cable curves for operator polling.
 
 ### Fixed
+- **Dynamics: the "Add Selected As Colliders" button was unreachable.** It sat inside the Dynamics section, which
+  only draws when a cable (or one of its controls) is active — but setting up colliders means selecting the
+  character/prop meshes, so the button disappeared exactly when it was needed. It now lives in its own
+  *Collision Setup* section that is always visible, and the operator reports which collection to assign when no
+  cable is active to receive it.
 - **Dynamics: controls did not actually hold the cable.** Pin weights were derived from a `Map Range` falloff on
   world-space proximity, which only reaches full strength for a point sitting exactly on a control — so every pin
   was partial. Moving a control 2 m moved the cable only ~0.36 m, kinks appeared at the moved control, and the

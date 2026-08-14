@@ -90,10 +90,12 @@ Requires **Blender 5.2 LTS**. Any cable created above can be simulated without r
 ### Collision with characters and props
 
 1. Select the character/prop mesh objects the cable should hit.
-2. Click **Add Selected As Colliders**. This adds a collider modifier to each and puts them in a
-   `Cable Colliders` collection, which is assigned to the active cable's **Collision Collection**.
-3. Set the cable's **Pin Controls** to *Ends Only* (or *None*) so it has a free span to drape.
-4. Play the timeline — the cable now collides with, drapes over and is pushed by those objects.
+2. Click **Add Selected As Colliders**, under *Collision Setup* at the bottom of the panel. This adds a collider
+   modifier to each and puts them in a `Cable Colliders` collection.
+3. Select the cable and set its **Collision Collection** to `Cable Colliders`.
+   (Tip: if you select the collider meshes *and* the cable, with the cable active, step 3 happens automatically.)
+4. Set the cable's **Pin Controls** to *Ends Only* (or *None*) so it has a free span to drape.
+5. Play the timeline — the cable now collides with, drapes over and is pushed by those objects.
 
 Colliders are set up as *deforming*, so animated/armature-driven characters work. Collider objects must be
 meshes. **Collision Radius** controls the cable's effective thickness for contact, independent of its visual
