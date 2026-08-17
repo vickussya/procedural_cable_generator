@@ -82,10 +82,22 @@ def make_empty(name: str, location_world: Vector, empty_size: float) -> bpy.type
     return obj
 
 
-def parent_keep_world(child: bpy.types.Object, parent: bpy.types.Object) -> None:
+def parent_keep_world(
+    child: bpy.types.Object,
+    parent: bpy.types.Object,
+    bone_name: str | None = None,
+) -> None:
     world = child.matrix_world.copy()
     child.parent = parent
-    child.matrix_parent_inverse = parent.matrix_world.inverted()
+    if bone_name:
+        # Bone parenting is relative to the bone rather than the armature object, so the
+        # object-level parent inverse does not apply. Assigning matrix_world afterwards
+        # lets Blender solve the local transform against the bone.
+        child.parent_type = "BONE"
+        child.parent_bone = bone_name
+        child.matrix_parent_inverse = Matrix.Identity(4)
+    else:
+        child.matrix_parent_inverse = parent.matrix_world.inverted()
     child.matrix_world = world
 
 

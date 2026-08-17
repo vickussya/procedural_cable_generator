@@ -345,6 +345,84 @@ class PCG_OT_remove_cable_dynamics(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class PCG_OT_attach_control(bpy.types.Operator):
+    bl_idname = "pcg.attach_control"
+    bl_label = "Attach Controls To Active"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        if context.mode != "OBJECT":
+            return False
+        target = context.active_object
+        if target is None:
+            return False
+        return any(
+            obj is not target and obj.type == "EMPTY" for obj in (context.selected_objects or [])
+        )
+
+    def execute(self, context: bpy.types.Context):
+        target = context.active_object
+        controls = [
+            obj for obj in context.selected_objects if obj is not target and obj.type == "EMPTY"
+        ]
+        if not controls:
+            self.report({"ERROR"}, "Select one or more control empties, then the target last")
+            return {"CANCELLED"}
+
+        # On an armature, prefer the active bone so a control can follow a hand, head, etc.
+        bone_name = None
+        if target.type == "ARMATURE":
+            active_bone = target.data.bones.active
+            if active_bone is not None:
+                bone_name = active_bone.name
+            else:
+                self.report(
+                    {"WARNING"},
+                    "No active bone; attaching to the armature object instead. "
+                    "Select a bone in Pose Mode to attach to it",
+                )
+
+        for ctrl in controls:
+            parent_keep_world(ctrl, target, bone_name)
+
+        where = f"bone '{bone_name}'" if bone_name else f"'{target.name}'"
+        self.report({"INFO"}, f"Attached {len(controls)} control(s) to {where}")
+        return {"FINISHED"}
+
+
+class PCG_OT_detach_control(bpy.types.Operator):
+    bl_idname = "pcg.detach_control"
+    bl_label = "Detach Controls"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return context.mode == "OBJECT" and any(
+            obj.type == "EMPTY" and obj.parent is not None
+            for obj in (context.selected_objects or [])
+        )
+
+    def execute(self, context: bpy.types.Context):
+        detached = 0
+        for obj in context.selected_objects:
+            if obj.type != "EMPTY" or obj.parent is None:
+                continue
+            world = obj.matrix_world.copy()
+            obj.parent = None
+            obj.parent_type = "OBJECT"
+            obj.parent_bone = ""
+            obj.matrix_world = world
+            detached += 1
+
+        if detached == 0:
+            self.report({"ERROR"}, "No parented control empties selected")
+            return {"CANCELLED"}
+
+        self.report({"INFO"}, f"Detached {detached} control(s), keeping their position")
+        return {"FINISHED"}
+
+
 class PCG_OT_add_selected_colliders(bpy.types.Operator):
     bl_idname = "pcg.add_selected_colliders"
     bl_label = "Add Selected As Colliders"

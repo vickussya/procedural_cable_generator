@@ -7,6 +7,8 @@ from .operators import (
     PCG_OT_create_cables_from_out_mid_in,
     PCG_OT_create_free_cable,
     PCG_OT_add_selected_colliders,
+    PCG_OT_attach_control,
+    PCG_OT_detach_control,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
 )
@@ -127,9 +129,17 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                 box.label(text="Uses Blender 5.2's experimental node-based cloth solver.")
                 box.operator(PCG_OT_make_cable_dynamic.bl_idname, icon="PHYSICS")
 
-        # Kept outside the cable-gated section above: setting up colliders means selecting
-        # the character/prop meshes, at which point no cable is active and that section is
-        # hidden - which would hide this button exactly when it is needed.
+        # The sections below stay outside the cable-gated block above, because both
+        # workflows end with a non-cable object active (an armature, or the collider
+        # meshes), which would otherwise hide the very buttons needed.
+        layout.separator()
+        attach_box = layout.box()
+        attach_box.label(text="Attach Controls:", icon="CONSTRAINT_BONE")
+        attach_box.operator(PCG_OT_attach_control.bl_idname, icon="CONSTRAINT_BONE")
+        attach_box.operator(PCG_OT_detach_control.bl_idname, icon="X")
+        attach_box.label(text="Select CTRL empties, then the")
+        attach_box.label(text="bone or object last.")
+
         layout.separator()
         collider_box = layout.box()
         collider_box.label(text="Collision Setup:", icon="MOD_PHYSICS")
