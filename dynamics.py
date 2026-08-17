@@ -28,7 +28,7 @@ SELFCOL_PIN_GROUP = "pcg_pin"
 
 # Bumped whenever the wrapper node group's layout changes, so .blend files holding an
 # older group get a freshly built one instead of silently reusing an incompatible tree.
-WRAPPER_GROUP_VERSION = 4
+WRAPPER_GROUP_VERSION = 5
 WRAPPER_VERSION_KEY = "pcg_wrapper_version"
 
 # Upper bound for the XPBD compliance values fed to Cloth Dynamics; see compliance_from().
@@ -796,9 +796,21 @@ def get_or_create_selfcol_group() -> bpy.types.NodeTree:
     is_centre.inputs["Epsilon"].default_value = 0.01
     links.new(row.outputs["Value"], is_centre.inputs[0])
 
+    # Delete the outer rows rather than passing a selection to Mesh to Curve: that node's
+    # Selection is an edge-domain field, so a point-domain mask also caught the cross-edges
+    # and produced a curve zig-zagging across the ribbon, rendering the cable flat.
+    drop_sides = nodes.new("FunctionNodeBooleanMath")
+    drop_sides.operation = "NOT"
+    links.new(is_centre.outputs["Result"], drop_sides.inputs[0])
+
+    centre_only = nodes.new("GeometryNodeDeleteGeometry")
+    centre_only.domain = "POINT"
+    centre_only.mode = "ALL"
+    links.new(obj_info.outputs["Geometry"], centre_only.inputs["Geometry"])
+    links.new(drop_sides.outputs["Boolean"], centre_only.inputs["Selection"])
+
     mesh_to_curve = nodes.new("GeometryNodeMeshToCurve")
-    links.new(obj_info.outputs["Geometry"], mesh_to_curve.inputs["Mesh"])
-    links.new(is_centre.outputs["Result"], mesh_to_curve.inputs["Selection"])
+    links.new(centre_only.outputs["Geometry"], mesh_to_curve.inputs["Mesh"])
 
     links.new(
         _add_tube_bevel(ng, links, nodes, gin, mesh_to_curve.outputs["Curve"]),

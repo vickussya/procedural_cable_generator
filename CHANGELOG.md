@@ -82,6 +82,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sink into thin or fast-moving geometry.
 
 ### Fixed
+- **Dynamics: cables rendered flat with Self Collision enabled.** The cable's path was taken from the cloth
+  proxy's middle row using `Mesh to Curve`'s `Selection` input, but that field is evaluated on the *edge* domain,
+  so a point-domain mask also matched the ribbon's cross-edges. The resulting curve zig-zagged across the ribbon
+  and beveled into a flat strap — measured 0.166 wide against 0.016 tall, where a round tube is 0.016 both ways.
+  The outer rows are now deleted before the conversion, giving a clean centreline: the tube measures 0.016 in both
+  axes, matching a cable without self collision.
 - **Dynamics: attaching a control to a bone silently attached it to the armature object instead.** The operator
   only looked at `Armature.bones.active`, which selecting a bone in the Outliner does not set, and then fell back
   to parenting to the armature object with only a warning. That looks like it worked but never follows the rig's
