@@ -3,7 +3,9 @@ import tempfile
 
 import bpy
 
-from .utils import is_cable_curve_object, unique_name
+from mathutils import Vector
+
+from .utils import is_cable_curve_object, offset_dir_for_slack, unique_name
 
 
 CLOTH_ASSET_BLEND_RELATIVE_PATH = os.path.join("assets", "nodes", "geometry_nodes_dynamics_assets.blend")
@@ -14,6 +16,15 @@ DYNAMICS_MODIFIER_NAME = "PCG Dynamics"
 
 TIER_HERO = "HERO"
 TIER_BACKGROUND = "BACKGROUND"
+
+# Optional heavier fallback for cable-to-cable tangling. Blender 5.2's node cloth has no
+# self-collision input, so this routes the cable through a legacy Cloth modifier instead.
+# That solver ignores edge-only geometry entirely - measured falling straight through a
+# floor collider - so the proxy is a faced ribbon whose middle row is the cable's path.
+SELFCOL_GROUP_NAME = "PCG Cable Self Collision"
+SELFCOL_MODIFIER_NAME = "PCG Cloth"
+SELFCOL_RIBBON_ROWS = 3
+SELFCOL_PIN_GROUP = "pcg_pin"
 
 # Bumped whenever the wrapper node group's layout changes, so .blend files holding an
 # older group get a freshly built one instead of silently reusing an incompatible tree.
@@ -706,6 +717,15 @@ def disable_dynamics(cable_obj: bpy.types.Object) -> None:
     cable_obj.modifiers.remove(mod)
     settings.anchor_object = None
 
+    proxy = settings.selfcol_object
+    settings.selfcol_object = None
+    settings.use_self_collision = False
+    if proxy is not None:
+        proxy_mesh = proxy.data
+        bpy.data.objects.remove(proxy, do_unlink=True)
+        if proxy_mesh is not None and proxy_mesh.users == 0:
+            bpy.data.meshes.remove(proxy_mesh)
+
     if anchor_obj is not None:
         anchor_mesh = anchor_obj.data
         bpy.data.objects.remove(anchor_obj, do_unlink=True)
@@ -713,9 +733,229 @@ def disable_dynamics(cable_obj: bpy.types.Object) -> None:
             bpy.data.meshes.remove(anchor_mesh)
 
 
-def node_group_for_tier(tier: str) -> bpy.types.NodeTree:
+def _add_tube_bevel(ng, links, nodes, gin, curve_socket):
+    """Bevel a curve into a tube inside the tree, shared by the hero and self-collision groups."""
+    profile_segments = nodes.new("ShaderNodeMath")
+    profile_segments.operation = "ADD"
+    profile_segments.inputs[1].default_value = 1.0
+    links.new(gin.outputs["Profile Resolution"], profile_segments.inputs[0])
+
+    profile_resolution = nodes.new("ShaderNodeMath")
+    profile_resolution.operation = "MULTIPLY"
+    profile_resolution.inputs[1].default_value = 4.0
+    links.new(profile_segments.outputs["Value"], profile_resolution.inputs[0])
+
+    profile = nodes.new("GeometryNodeCurvePrimitiveCircle")
+    profile.mode = "RADIUS"
+    links.new(profile_resolution.outputs["Value"], profile.inputs["Resolution"])
+    links.new(gin.outputs["Thickness"], profile.inputs["Radius"])
+
+    tube = nodes.new("GeometryNodeCurveToMesh")
+    tube.inputs["Fill Caps"].default_value = True
+    links.new(curve_socket, tube.inputs["Curve"])
+    links.new(profile.outputs["Curve"], tube.inputs["Profile Curve"])
+    return tube.outputs["Mesh"]
+
+
+def get_or_create_selfcol_group() -> bpy.types.NodeTree:
+    """Draws the cable from the legacy-cloth ribbon proxy's middle row."""
+    existing = bpy.data.node_groups.get(SELFCOL_GROUP_NAME)
+    if existing is not None and existing.get(WRAPPER_VERSION_KEY) == WRAPPER_GROUP_VERSION:
+        return existing
+
+    group_name = unique_name(SELFCOL_GROUP_NAME, {g.name for g in bpy.data.node_groups})
+    ng = bpy.data.node_groups.new(group_name, "GeometryNodeTree")
+    ng[WRAPPER_VERSION_KEY] = WRAPPER_GROUP_VERSION
+    iface = ng.interface
+    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    iface.new_socket("Cloth Proxy", in_out="INPUT", socket_type="NodeSocketObject")
+    iface.new_socket("Thickness", in_out="INPUT", socket_type="NodeSocketFloat")
+    iface.new_socket("Profile Resolution", in_out="INPUT", socket_type="NodeSocketInt")
+    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+
+    nodes, links = ng.nodes, ng.links
+    gin = nodes.new("NodeGroupInput")
+    gout = nodes.new("NodeGroupOutput")
+
+    obj_info = nodes.new("GeometryNodeObjectInfo")
+    obj_info.transform_space = "RELATIVE"
+    links.new(gin.outputs["Cloth Proxy"], obj_info.inputs["Object"])
+
+    # The ribbon stores three vertices per cross-section, so its middle row - every third
+    # vertex, offset by one - is the cable's centreline.
+    index = nodes.new("GeometryNodeInputIndex")
+    row = nodes.new("ShaderNodeMath")
+    row.operation = "MODULO"
+    row.inputs[1].default_value = float(SELFCOL_RIBBON_ROWS)
+    links.new(index.outputs["Index"], row.inputs[0])
+
+    is_centre = nodes.new("FunctionNodeCompare")
+    is_centre.data_type = "FLOAT"
+    is_centre.operation = "EQUAL"
+    is_centre.inputs[1].default_value = 1.0
+    is_centre.inputs["Epsilon"].default_value = 0.01
+    links.new(row.outputs["Value"], is_centre.inputs[0])
+
+    mesh_to_curve = nodes.new("GeometryNodeMeshToCurve")
+    links.new(obj_info.outputs["Geometry"], mesh_to_curve.inputs["Mesh"])
+    links.new(is_centre.outputs["Result"], mesh_to_curve.inputs["Selection"])
+
+    links.new(
+        _add_tube_bevel(ng, links, nodes, gin, mesh_to_curve.outputs["Curve"]),
+        gout.inputs["Geometry"],
+    )
+    return ng
+
+
+def _create_selfcol_proxy(cable_obj, controls, settings) -> bpy.types.Object:
+    positions = [c.matrix_world.translation.copy() for c in controls]
+    divisions = max(1, settings.segment_divisions)
+
+    centres = []
+    control_columns = []
+    for i in range(len(positions) - 1):
+        for step in range(divisions):
+            if step == 0:
+                control_columns.append(len(centres))
+            centres.append(positions[i].lerp(positions[i + 1], step / divisions))
+    control_columns.append(len(centres))
+    centres.append(positions[-1])
+
+    # Give the ribbon width across the cable rather than along it, so it reads as a strip.
+    across = offset_dir_for_slack(positions[0], positions[-1]).cross(
+        (positions[-1] - positions[0]).normalized()
+    )
+    if across.length < 1e-6:
+        across = Vector((0.0, 1.0, 0.0))
+    across.normalize()
+    # The ribbon must be wider than the self-collision threshold, or its own rows read as
+    # colliding with each other and inflate the proxy - measured spreading a 0.008 cable to
+    # a 0.31 radius before this was accounted for.
+    half_width = max(0.005, settings.collision_radius, settings.self_collision_distance) * 1.5
+
+    verts = []
+    for centre in centres:
+        verts.append(tuple(centre - across * half_width))
+        verts.append(tuple(centre))
+        verts.append(tuple(centre + across * half_width))
+
+    faces = []
+    for i in range(len(centres) - 1):
+        a = SELFCOL_RIBBON_ROWS * i
+        b = SELFCOL_RIBBON_ROWS * (i + 1)
+        faces.append((a, a + 1, b + 1, b))
+        faces.append((a + 1, a + 2, b + 2, b + 1))
+
+    mesh_name = unique_name(f"CLOTH_{cable_obj.name}", {m.name for m in bpy.data.meshes})
+    mesh = bpy.data.meshes.new(mesh_name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+
+    proxy = bpy.data.objects.new(mesh_name, mesh)
+    for collection in cable_obj.users_collection or (bpy.context.scene.collection,):
+        collection.objects.link(proxy)
+    proxy.hide_render = True
+    bpy.context.view_layer.update()
+
+    # Honour Pin Controls here too, otherwise every control stays pinned and the cable is
+    # held rigid instead of draping.
+    pin_mode = settings.pin_mode
+    if pin_mode == "ALL":
+        pinned_columns = list(control_columns)
+    elif pin_mode == "ENDS":
+        pinned_columns = [control_columns[0], control_columns[-1]]
+    else:
+        pinned_columns = []
+
+    pin_group = proxy.vertex_groups.new(name=SELFCOL_PIN_GROUP)
+    for column in pinned_columns:
+        pin_group.add(
+            [SELFCOL_RIBBON_ROWS * column + row for row in range(SELFCOL_RIBBON_ROWS)],
+            1.0,
+            "REPLACE",
+        )
+
+    # Hooks come before the cloth modifier so the pinned rows track the control empties.
+    # All three vertices of a column share one hook, which moves them rigidly and keeps the
+    # ribbon's width intact.
+    for i, (ctrl, column) in enumerate(zip(controls, control_columns)):
+        group = proxy.vertex_groups.new(name=f"pcg_hook_{i:02d}")
+        group.add(
+            [SELFCOL_RIBBON_ROWS * column + row for row in range(SELFCOL_RIBBON_ROWS)],
+            1.0,
+            "REPLACE",
+        )
+        hook = proxy.modifiers.new(f"Hook_{i:02d}", type="HOOK")
+        hook.object = ctrl
+        hook.vertex_group = group.name
+        hook.matrix_inverse = ctrl.matrix_world.inverted() @ proxy.matrix_world
+
+    cloth = proxy.modifiers.new(SELFCOL_MODIFIER_NAME, type="CLOTH")
+    sync_selfcol_settings(cloth, settings)
+    return proxy
+
+
+def sync_selfcol_settings(cloth_modifier, settings) -> None:
+    cloth = cloth_modifier.settings
+    cloth.vertex_group_mass = SELFCOL_PIN_GROUP
+    cloth.mass = settings.mass
+    cloth.quality = max(5, settings.substeps * 2)
+    cloth.air_damping = max(0.1, settings.damping)
+    # Legacy cloth pins with a spring rather than a hard constraint, so keep it stiff to
+    # stay as close as possible to the node solver's exact pinning.
+    cloth.pin_stiffness = 50.0
+    cloth.tension_stiffness = 15.0
+    cloth.compression_stiffness = 15.0
+    cloth.bending_stiffness = max(0.01, settings.bend * 5.0)
+
+    collision = cloth_modifier.collision_settings
+    collision.use_self_collision = True
+    collision.self_distance_min = max(0.001, settings.self_collision_distance)
+    collision.collision_quality = max(2, settings.substeps)
+    collision.distance_min = max(0.001, settings.collision_radius)
+    collision.use_collision = settings.collision_collection is not None
+    collision.collection = settings.collision_collection
+
+
+def enable_self_collision(cable_obj: bpy.types.Object) -> None:
+    settings = cable_obj.pcg_dynamics
+    if not is_dynamics_enabled(cable_obj):
+        raise DynamicsError("Enable Dynamics on this cable first.")
+    if settings.tier == TIER_BACKGROUND:
+        raise DynamicsError("Self collision needs the Hero tier; background cables are not simulated.")
+    if settings.selfcol_object is not None:
+        raise DynamicsError("Self collision is already enabled on this cable.")
+
+    controls = get_cable_controls(cable_obj)
+    if not controls or any(c is None for c in controls):
+        raise DynamicsError("This cable's points aren't all driven by CTRL_* control empties.")
+
+    settings.selfcol_object = _create_selfcol_proxy(cable_obj, controls, settings)
+    settings.use_self_collision = True
+    sync_dynamics_settings(cable_obj, settings)
+
+
+def disable_self_collision(cable_obj: bpy.types.Object) -> None:
+    settings = cable_obj.pcg_dynamics
+    proxy = settings.selfcol_object
+    settings.use_self_collision = False
+    settings.selfcol_object = None
+
+    if proxy is not None:
+        proxy_mesh = proxy.data
+        bpy.data.objects.remove(proxy, do_unlink=True)
+        if proxy_mesh is not None and proxy_mesh.users == 0:
+            bpy.data.meshes.remove(proxy_mesh)
+
+    if is_dynamics_enabled(cable_obj):
+        sync_dynamics_settings(cable_obj, settings)
+
+
+def node_group_for_tier(tier: str, use_self_collision: bool = False) -> bpy.types.NodeTree:
     if tier == TIER_BACKGROUND:
         return get_or_create_sway_group()
+    if use_self_collision:
+        return get_or_create_selfcol_group()
     return get_or_create_wrapper_group()
 
 
@@ -724,13 +964,12 @@ def sync_dynamics_settings(cable_obj: bpy.types.Object, settings) -> None:
     if mod is None:
         return
 
-    # Switching tier swaps the node group in place, restoring the anchor from the settings
-    # so the hero setup survives a round trip through the background tier.
-    wanted = node_group_for_tier(settings.tier)
+    # Switching tier or self-collision swaps the node group in place, restoring the anchor
+    # from the settings so the hero setup survives a round trip through the other modes.
+    self_collision = settings.use_self_collision and settings.selfcol_object is not None
+    wanted = node_group_for_tier(settings.tier, self_collision)
     if mod.node_group is not wanted:
         mod.node_group = wanted
-    if settings.tier != TIER_BACKGROUND and settings.anchor_object is not None:
-        _set_modifier_input(mod, "Pin Anchors", settings.anchor_object)
 
     if settings.tier == TIER_BACKGROUND:
         _set_modifier_input(mod, "Sway Amount", settings.sway_amount)
@@ -738,6 +977,18 @@ def sync_dynamics_settings(cable_obj: bpy.types.Object, settings) -> None:
         _set_modifier_input(mod, "Sway Scale", settings.sway_scale)
         _set_modifier_input(mod, "Resample Count", settings.sway_resample)
         return
+
+    if self_collision:
+        _set_modifier_input(mod, "Cloth Proxy", settings.selfcol_object)
+        _set_modifier_input(mod, "Thickness", settings.thickness)
+        _set_modifier_input(mod, "Profile Resolution", settings.profile_resolution)
+        cloth = settings.selfcol_object.modifiers.get(SELFCOL_MODIFIER_NAME)
+        if cloth is not None:
+            sync_selfcol_settings(cloth, settings)
+        return
+
+    if settings.anchor_object is not None:
+        _set_modifier_input(mod, "Pin Anchors", settings.anchor_object)
 
     _set_modifier_input(mod, "Mass", settings.mass)
     _set_modifier_input(mod, "Stiffness", settings.stiffness)

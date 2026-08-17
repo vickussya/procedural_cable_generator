@@ -205,6 +205,34 @@ def _update_preset_value(self, context: bpy.types.Context) -> None:
 class PCG_DynamicsSettings(bpy.types.PropertyGroup):
     """Per-cable dynamics settings, active on a CABLE_* curve object once Dynamics is enabled."""
 
+    # Set by the Enable/Disable Self Collision operators rather than edited directly:
+    # switching it builds or removes a cloth proxy object, which is not safe to do from a
+    # property update handler.
+    use_self_collision: BoolProperty(
+        name="Self Collision",
+        default=False,
+        description="Whether this cable is routed through the heavier legacy-cloth solver "
+        "so it can collide with itself",
+    )
+
+    selfcol_object: PointerProperty(
+        name="Cloth Proxy",
+        type=bpy.types.Object,
+        description="Internal ribbon mesh simulated by legacy Cloth when self collision is on",
+    )
+
+    self_collision_distance: FloatProperty(
+        name="Self Distance",
+        default=0.05,
+        min=0.001,
+        soft_max=0.5,
+        description="How close the cable may come to itself before pushing apart. Raise it if "
+        "the cable passes through itself, lower it for tighter coils",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_update_dynamics_settings,
+    )
+
     alembic_directory: StringProperty(
         name="Export Folder",
         default="//",

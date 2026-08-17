@@ -12,6 +12,8 @@ from .operators import (
     PCG_OT_bake_simulation,
     PCG_OT_delete_simulation_bake,
     PCG_OT_detach_control,
+    PCG_OT_disable_self_collision,
+    PCG_OT_enable_self_collision,
     PCG_OT_export_cable_alembic,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
@@ -143,6 +145,17 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                     adv.prop(dyn, "substeps")
                     adv.prop(dyn, "constraint_steps")
                     adv.prop(dyn, "segment_divisions")
+
+                    selfcol = box.box()
+                    selfcol.label(text="Self Collision (heavy):", icon="MOD_PHYSICS")
+                    if dyn.use_self_collision:
+                        selfcol.label(text="On - legacy cloth solver.")
+                        selfcol.prop(dyn, "self_collision_distance")
+                        selfcol.operator(PCG_OT_disable_self_collision.bl_idname, icon="X")
+                    else:
+                        selfcol.label(text="Off. Lets a cable tangle with")
+                        selfcol.label(text="itself, but costs performance.")
+                        selfcol.operator(PCG_OT_enable_self_collision.bl_idname, icon="MOD_PHYSICS")
 
                     bake = box.box()
                     bake.label(text="Bake:", icon="FILE_TICK")

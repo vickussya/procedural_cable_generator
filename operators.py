@@ -363,6 +363,41 @@ class _CableDynamicsOperator(bpy.types.Operator):
         return cable
 
 
+class PCG_OT_enable_self_collision(_CableDynamicsOperator):
+    bl_idname = "pcg.enable_self_collision"
+    bl_label = "Enable Self Collision"
+
+    def execute(self, context: bpy.types.Context):
+        cable = self._cable(context)
+        if cable is None:
+            return {"CANCELLED"}
+        try:
+            dynamics.enable_self_collision(cable)
+        except dynamics.DynamicsError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+        self.report(
+            {"WARNING"},
+            f"Self collision on '{cable.name}' uses the heavier legacy cloth solver; "
+            "expect slower playback",
+        )
+        return {"FINISHED"}
+
+
+class PCG_OT_disable_self_collision(_CableDynamicsOperator):
+    bl_idname = "pcg.disable_self_collision"
+    bl_label = "Disable Self Collision"
+
+    def execute(self, context: bpy.types.Context):
+        cable = self._cable(context)
+        if cable is None:
+            return {"CANCELLED"}
+        dynamics.disable_self_collision(cable)
+        self.report({"INFO"}, f"Self collision removed from '{cable.name}'")
+        return {"FINISHED"}
+
+
 class PCG_OT_bake_simulation(_CableDynamicsOperator):
     bl_idname = "pcg.bake_simulation"
     bl_label = "Bake Simulation"
