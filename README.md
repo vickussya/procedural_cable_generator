@@ -125,10 +125,11 @@ Blender 5.2 node solver does not yet support.
 
 ### Attaching controls to a character
 
-1. Select the `CTRL_*` empties you want to attach.
-2. Shift-select the target **last** so it is active — either an object, or an armature with the bone you want
-   selected in Pose Mode.
-3. Click **Attach Controls To Active** under *Attach Controls*.
+1. Select the bone you want in **Pose Mode**, then return to Object Mode. Clicking a bone in the Outliner is not
+   enough — Blender does not mark it selected, and the add-on will refuse rather than attach to the wrong thing.
+2. Select the `CTRL_*` empties you want to attach.
+3. Shift-select the armature (or plain object) **last** so it is active.
+4. Click **Attach Controls To Active** under *Attach Controls*. The status bar confirms which bone was used.
 
 The control keeps its current position and then follows the bone or object. Since pinned controls hold exactly,
 attaching one to a hand bone makes the cable end track that hand while the rest of the cable simulates.

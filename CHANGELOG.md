@@ -65,6 +65,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sink into thin or fast-moving geometry.
 
 ### Fixed
+- **Dynamics: attaching a control to a bone silently attached it to the armature object instead.** The operator
+  only looked at `Armature.bones.active`, which selecting a bone in the Outliner does not set, and then fell back
+  to parenting to the armature object with only a warning. That looks like it worked but never follows the rig's
+  bone animation, because an armature object does not move when its bones are posed. Bone selection lives on
+  `PoseBone.select` in Blender 5.2 rather than `Bone.select`, so the bone is now resolved from the active pose
+  bone, the active bone, or a single selected pose bone — and if no bone can be identified the operator reports an
+  error instead of attaching to the object.
 - **Dynamics: dynamic cables rendered with no thickness at all.** Blender only applies a curve object's native
   bevel to geometry originating from that object's own curve data, and a dynamic cable is rebuilt from its pin
   anchor object, so the bevel was silently dropped and the cable displayed as a zero-radius line regardless of its

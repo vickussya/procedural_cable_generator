@@ -345,6 +345,26 @@ class PCG_OT_remove_cable_dynamics(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def _resolve_target_bone(context: bpy.types.Context, armature: bpy.types.Object) -> str | None:
+    """Find which bone of `armature` a control should follow, or None if unclear.
+
+    Note that bone selection lives on `PoseBone.select` rather than `Bone.select`, and that
+    picking a bone in the Outliner sets neither, which is why several routes are tried.
+    """
+    active_pose_bone = getattr(context, "active_pose_bone", None)
+    if active_pose_bone is not None and active_pose_bone.id_data is armature:
+        return active_pose_bone.name
+
+    active_bone = armature.data.bones.active
+    if active_bone is not None:
+        return active_bone.name
+
+    selected = [pose_bone.name for pose_bone in armature.pose.bones if pose_bone.select]
+    if len(selected) == 1:
+        return selected[0]
+    return None
+
+
 class PCG_OT_attach_control(bpy.types.Operator):
     bl_idname = "pcg.attach_control"
     bl_label = "Attach Controls To Active"
@@ -370,18 +390,19 @@ class PCG_OT_attach_control(bpy.types.Operator):
             self.report({"ERROR"}, "Select one or more control empties, then the target last")
             return {"CANCELLED"}
 
-        # On an armature, prefer the active bone so a control can follow a hand, head, etc.
+        # On an armature, resolve which bone the control should follow. Attaching to the
+        # armature *object* instead would look like it worked while never following the
+        # rig's bone animation, so a bone that cannot be identified is an error.
         bone_name = None
         if target.type == "ARMATURE":
-            active_bone = target.data.bones.active
-            if active_bone is not None:
-                bone_name = active_bone.name
-            else:
+            bone_name = _resolve_target_bone(context, target)
+            if bone_name is None:
                 self.report(
-                    {"WARNING"},
-                    "No active bone; attaching to the armature object instead. "
-                    "Select a bone in Pose Mode to attach to it",
+                    {"ERROR"},
+                    "No bone identified on the armature. Select the bone in Pose Mode "
+                    "(clicking it in the Outliner is not enough), then try again",
                 )
+                return {"CANCELLED"}
 
         for ctrl in controls:
             parent_keep_world(ctrl, target, bone_name)
