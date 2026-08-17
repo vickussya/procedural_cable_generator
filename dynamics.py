@@ -833,20 +833,32 @@ def _create_selfcol_proxy(cable_obj, controls, settings) -> bpy.types.Object:
     control_columns.append(len(centres))
     centres.append(positions[-1])
 
-    # Give the ribbon width across the cable rather than along it, so it reads as a strip.
-    across = offset_dir_for_slack(positions[0], positions[-1]).cross(
-        (positions[-1] - positions[0]).normalized()
-    )
-    if across.length < 1e-6:
-        across = Vector((0.0, 1.0, 0.0))
-    across.normalize()
     # The ribbon must be wider than the self-collision threshold, or its own rows read as
     # colliding with each other and inflate the proxy - measured spreading a 0.008 cable to
     # a 0.31 radius before this was accounted for.
     half_width = max(0.005, settings.collision_radius, settings.self_collision_distance) * 1.5
 
+    # Width runs across the *local* tangent at each cross-section. A single fixed direction
+    # for the whole cable twists the ribbon relative to a curved path - measured swinging
+    # through nearly 180 degrees around a coil - which makes its bending stiffness vary
+    # wildly along the cable and destabilises the simulation.
+    up = Vector((0.0, 0.0, 1.0))
     verts = []
-    for centre in centres:
+    for i, centre in enumerate(centres):
+        previous = centres[max(0, i - 1)]
+        following = centres[min(len(centres) - 1, i + 1)]
+        tangent = following - previous
+        if tangent.length < 1e-9:
+            tangent = Vector((1.0, 0.0, 0.0))
+        tangent.normalize()
+
+        across = tangent.cross(up)
+        if across.length < 1e-6:  # cable running straight up or down
+            across = tangent.cross(Vector((1.0, 0.0, 0.0)))
+        if across.length < 1e-6:
+            across = Vector((0.0, 1.0, 0.0))
+        across.normalize()
+
         verts.append(tuple(centre - across * half_width))
         verts.append(tuple(centre))
         verts.append(tuple(centre + across * half_width))

@@ -94,6 +94,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sink into thin or fast-moving geometry.
 
 ### Fixed
+- **Dynamics: the self-collision proxy ribbon twisted relative to curved cables.** Its width used a single fixed
+  world direction for the whole cable, so on a coil the width swung right through the cable direction, leaving
+  sections of very uneven size and stiffness. Width now runs across the *local* tangent at each cross-section:
+  measured exactly perpendicular everywhere, with section areas varying 1.6x instead of 4.1x.
 - **Dynamics: cables rendered flat with Self Collision enabled.** The cable's path was taken from the cloth
   proxy's middle row using `Mesh to Curve`'s `Selection` input, but that field is evaluated on the *edge* domain,
   so a point-domain mask also matched the ribbon's cross-edges. The resulting curve zig-zagged across the ribbon

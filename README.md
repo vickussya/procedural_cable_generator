@@ -242,9 +242,13 @@ routed through Blender's older Cloth simulation on a hidden proxy object instead
 Hero-tier only. Turn it on with **Enable Self Collision**, and tune **Self Distance** — how close the cable may
 come to itself before pushing apart.
 
-Two things to know before using it:
+Things to know before using it:
 
 - It is **noticeably slower** than the normal solver. Reserve it for the few cables where visible tangling matters.
+- **On a coil, set Pin Controls to *All Controls*.** A coil is a posed shape — with *Ends Only* nothing holds its
+  turns up, so it collapses and thrashes. That looks like a self-collision failure but is just an unsupported
+  cable: measured 0.23 of movement with *All Controls* against 6.4 with *Ends Only*. Use *Ends Only* for cables
+  meant to fall and drape, not for coils.
 - The proxy is a flat ribbon, so a slack cable can buckle sideways more than a round cable would, and pinned
   controls are held by a spring rather than exactly. If you need controls pinned precisely, leave self collision
   off.
