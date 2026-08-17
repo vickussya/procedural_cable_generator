@@ -148,8 +148,9 @@ Worth knowing: **mass and bend do not change the shape of a cable once it has se
 is fixed by its length and span, much as a pendulum's period is independent of its mass. They do change how a cable
 reacts to being pushed or dragged, which is where the presets visibly differ.
 
-*Frayed Tangle* currently only supplies parameters; true cable-to-cable tangling needs self-collision, which the
-Blender 5.2 node solver does not yet support.
+*Frayed Tangle* sets the stiffness and friction for a messy cable, but on its own it cannot make a cable tangle
+with *itself* — the Blender 5.2 node solver has no self-collision. Pair it with **Self Collision** below for real
+tangling.
 
 ### Attaching controls to a character
 
