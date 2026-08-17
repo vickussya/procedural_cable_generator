@@ -8,7 +8,11 @@ from .operators import (
     PCG_OT_create_free_cable,
     PCG_OT_add_selected_colliders,
     PCG_OT_attach_control,
+    PCG_OT_bake_cable_to_mesh,
+    PCG_OT_bake_simulation,
+    PCG_OT_delete_simulation_bake,
     PCG_OT_detach_control,
+    PCG_OT_export_cable_alembic,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
 )
@@ -139,6 +143,21 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                     adv.prop(dyn, "substeps")
                     adv.prop(dyn, "constraint_steps")
                     adv.prop(dyn, "segment_divisions")
+
+                    bake = box.box()
+                    bake.label(text="Bake:", icon="FILE_TICK")
+                    row = bake.row(align=True)
+                    row.operator(PCG_OT_bake_simulation.bl_idname, icon="PHYSICS")
+                    row.operator(PCG_OT_delete_simulation_bake.bl_idname, text="", icon="TRASH")
+                    bake.operator(PCG_OT_bake_cable_to_mesh.bl_idname, icon="OUTLINER_OB_MESH")
+                    col = bake.column(align=True)
+                    col.label(text="Alembic Export Folder:")
+                    col.prop(dyn, "alembic_directory", text="")
+                    col.operator(PCG_OT_export_cable_alembic.bl_idname, icon="EXPORT")
+                    if not bpy.data.is_saved:
+                        warn = bake.column(align=True)
+                        warn.label(text="Unsaved .blend: exports go to", icon="ERROR")
+                        warn.label(text="a temp folder. Save first.")
 
                 box.operator(PCG_OT_remove_cable_dynamics.bl_idname, icon="X")
             else:

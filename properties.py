@@ -205,6 +205,16 @@ def _update_preset_value(self, context: bpy.types.Context) -> None:
 class PCG_DynamicsSettings(bpy.types.PropertyGroup):
     """Per-cable dynamics settings, active on a CABLE_* curve object once Dynamics is enabled."""
 
+    alembic_directory: StringProperty(
+        name="Export Folder",
+        default="//",
+        description=(
+            "Folder for Alembic (.abc) exports. Defaults to '//', which means the folder "
+            "holding this .blend. Unsaved files fall back to a temporary folder"
+        ),
+        subtype="DIR_PATH",
+    )
+
     # Held here rather than read back from the modifier, because the background tier's node
     # group has no Pin Anchors socket - reading it from there loses the reference as soon as
     # the tier is switched.

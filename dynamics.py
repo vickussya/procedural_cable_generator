@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 import bpy
 
@@ -528,6 +529,105 @@ def _create_pin_anchor_object(cable_obj: bpy.types.Object, controls: list[bpy.ty
         hook.matrix_inverse = ctrl.matrix_world.inverted() @ anchor_obj.matrix_world
 
     return anchor_obj
+
+
+def resolve_alembic_directory(settings) -> tuple[str, str | None]:
+    """Resolve the export folder, returning (absolute_path, warning_or_None).
+
+    Blender's "//" prefix means "next to the .blend", but it resolves to an empty string
+    while the file is unsaved, so fall back to the temp folder rather than writing nowhere.
+    """
+    raw = (settings.alembic_directory or "").strip()
+    if raw:
+        resolved = bpy.path.abspath(raw)
+        if resolved:
+            return resolved, None
+
+    if bpy.data.is_saved:
+        return os.path.dirname(bpy.data.filepath), None
+
+    fallback = bpy.app.tempdir or tempfile.gettempdir()
+    return fallback, (
+        "This .blend has not been saved, so the cable was exported to a temporary folder "
+        f"({fallback}). Save the .blend first to keep exports beside your project"
+    )
+
+
+def bake_cable_to_mesh(
+    cable_obj: bpy.types.Object,
+    frame_start: int,
+    frame_end: int,
+    *,
+    depsgraph_getter=None,
+    frame_setter=None,
+) -> tuple[bpy.types.Object, int]:
+    """Snapshot the simulated cable across a frame range into a shape-keyed mesh.
+
+    Returns (baked_object, frame_count). Kept self-contained in the .blend, so the result
+    survives without the live setup or any external cache file.
+    """
+    get_depsgraph = depsgraph_getter or bpy.context.evaluated_depsgraph_get
+    set_frame = frame_setter or bpy.context.scene.frame_set
+
+    def evaluated_vertices() -> list:
+        evaluated = cable_obj.evaluated_get(get_depsgraph())
+        mesh = evaluated.to_mesh()
+        if mesh is None:
+            evaluated.to_mesh_clear()
+            return []
+        coordinates = [vertex.co.copy() for vertex in mesh.vertices]
+        evaluated.to_mesh_clear()
+        return coordinates
+
+    set_frame(frame_start)
+    first_frame = evaluated_vertices()
+    if not first_frame:
+        raise DynamicsError("The cable produced no geometry to bake.")
+
+    baked_mesh = bpy.data.meshes.new(unique_name(f"BAKED_{cable_obj.name}", {m.name for m in bpy.data.meshes}))
+    evaluated = cable_obj.evaluated_get(get_depsgraph())
+    source_mesh = evaluated.to_mesh()
+    baked_mesh.from_pydata(
+        [tuple(v.co) for v in source_mesh.vertices],
+        [tuple(e.vertices) for e in source_mesh.edges],
+        [tuple(p.vertices) for p in source_mesh.polygons],
+    )
+    evaluated.to_mesh_clear()
+    baked_mesh.update()
+
+    baked_obj = bpy.data.objects.new(baked_mesh.name, baked_mesh)
+    for collection in cable_obj.users_collection or (bpy.context.scene.collection,):
+        collection.objects.link(baked_obj)
+
+    baked_obj.shape_key_add(name="Basis", from_mix=False)
+    vertex_count = len(baked_mesh.vertices)
+    baked = 0
+
+    for frame in range(frame_start, frame_end + 1):
+        set_frame(frame)
+        coordinates = evaluated_vertices()
+        # A settings change mid-bake would alter the vertex count and desynchronise the
+        # shape keys, so stop rather than write a corrupt result.
+        if len(coordinates) != vertex_count:
+            raise DynamicsError(
+                f"The cable's geometry changed at frame {frame} "
+                f"({len(coordinates)} points, expected {vertex_count}); bake stopped."
+            )
+
+        key = baked_obj.shape_key_add(name=f"frame_{frame:04d}", from_mix=False)
+        for index, coordinate in enumerate(coordinates):
+            key.data[index].co = coordinate
+
+        # Hold this frame's shape at full strength only on its own frame.
+        key.value = 0.0
+        key.keyframe_insert("value", frame=frame - 1)
+        key.value = 1.0
+        key.keyframe_insert("value", frame=frame)
+        key.value = 0.0
+        key.keyframe_insert("value", frame=frame + 1)
+        baked += 1
+
+    return baked_obj, baked
 
 
 def resolve_cable_for_object(obj: bpy.types.Object | None) -> bpy.types.Object | None:

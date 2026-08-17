@@ -1,4 +1,5 @@
 import math
+import os
 
 import bpy
 
@@ -342,6 +343,158 @@ class PCG_OT_remove_cable_dynamics(bpy.types.Operator):
 
         dynamics.disable_dynamics(cable)
         self.report({"INFO"}, f"Dynamics removed from '{cable.name}'")
+        return {"FINISHED"}
+
+
+class _CableDynamicsOperator(bpy.types.Operator):
+    """Shared polling for operators acting on the active cable's dynamics setup."""
+
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        return context.mode == "OBJECT" and dynamics.is_dynamics_enabled(cable)
+
+    def _cable(self, context: bpy.types.Context):
+        cable = dynamics.resolve_cable_for_object(context.active_object)
+        if cable is None:
+            self.report({"ERROR"}, "No cable curve found for the active object")
+        return cable
+
+
+class PCG_OT_bake_simulation(_CableDynamicsOperator):
+    bl_idname = "pcg.bake_simulation"
+    bl_label = "Bake Simulation"
+
+    def execute(self, context: bpy.types.Context):
+        cable = self._cable(context)
+        if cable is None:
+            return {"CANCELLED"}
+        if cable.pcg_dynamics.tier == dynamics.TIER_BACKGROUND:
+            self.report({"ERROR"}, "Background cables have no simulation to bake")
+            return {"CANCELLED"}
+
+        # The operator works on the selection, so make sure only this cable is baked.
+        previous = [obj for obj in context.selected_objects]
+        bpy.ops.object.select_all(action="DESELECT")
+        cable.select_set(True)
+        context.view_layer.objects.active = cable
+        try:
+            bpy.ops.object.simulation_nodes_cache_bake(selected=True)
+        except RuntimeError as exc:
+            self.report({"ERROR"}, f"Bake failed: {exc}")
+            return {"CANCELLED"}
+        finally:
+            for obj in previous:
+                obj.select_set(True)
+
+        self.report({"INFO"}, f"Baked simulation cache for '{cable.name}'")
+        return {"FINISHED"}
+
+
+class PCG_OT_delete_simulation_bake(_CableDynamicsOperator):
+    bl_idname = "pcg.delete_simulation_bake"
+    bl_label = "Delete Bake"
+
+    def execute(self, context: bpy.types.Context):
+        cable = self._cable(context)
+        if cable is None:
+            return {"CANCELLED"}
+
+        previous = [obj for obj in context.selected_objects]
+        bpy.ops.object.select_all(action="DESELECT")
+        cable.select_set(True)
+        context.view_layer.objects.active = cable
+        try:
+            bpy.ops.object.simulation_nodes_cache_delete(selected=True)
+        except RuntimeError as exc:
+            self.report({"ERROR"}, f"Could not delete bake: {exc}")
+            return {"CANCELLED"}
+        finally:
+            for obj in previous:
+                obj.select_set(True)
+
+        self.report({"INFO"}, f"Deleted simulation cache for '{cable.name}'")
+        return {"FINISHED"}
+
+
+class PCG_OT_export_cable_alembic(_CableDynamicsOperator):
+    bl_idname = "pcg.export_cable_alembic"
+    bl_label = "Export Alembic (.abc)"
+
+    def execute(self, context: bpy.types.Context):
+        cable = self._cable(context)
+        if cable is None:
+            return {"CANCELLED"}
+
+        directory, warning = dynamics.resolve_alembic_directory(cable.pcg_dynamics)
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except OSError as exc:
+            self.report({"ERROR"}, f"Could not create export folder '{directory}': {exc}")
+            return {"CANCELLED"}
+
+        filepath = os.path.join(directory, f"{cable.name}.abc")
+        scene = context.scene
+
+        previous = [obj for obj in context.selected_objects]
+        bpy.ops.object.select_all(action="DESELECT")
+        cable.select_set(True)
+        context.view_layer.objects.active = cable
+        try:
+            bpy.ops.wm.alembic_export(
+                filepath=filepath,
+                selected=True,
+                start=scene.frame_start,
+                end=scene.frame_end,
+                # Run synchronously so the report reflects a finished file rather than a
+                # job that is still writing.
+                as_background_job=False,
+                evaluation_mode="RENDER",
+            )
+        except RuntimeError as exc:
+            self.report({"ERROR"}, f"Alembic export failed: {exc}")
+            return {"CANCELLED"}
+        finally:
+            for obj in previous:
+                obj.select_set(True)
+
+        if warning:
+            self.report({"WARNING"}, warning)
+        else:
+            self.report(
+                {"INFO"},
+                f"Exported frames {scene.frame_start}-{scene.frame_end} to {filepath}",
+            )
+        return {"FINISHED"}
+
+
+class PCG_OT_bake_cable_to_mesh(_CableDynamicsOperator):
+    bl_idname = "pcg.bake_cable_to_mesh"
+    bl_label = "Convert To Baked Mesh"
+
+    def execute(self, context: bpy.types.Context):
+        cable = self._cable(context)
+        if cable is None:
+            return {"CANCELLED"}
+
+        scene = context.scene
+        original_frame = scene.frame_current
+        try:
+            baked_obj, frames = dynamics.bake_cable_to_mesh(
+                cable, scene.frame_start, scene.frame_end
+            )
+        except dynamics.DynamicsError as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+        finally:
+            scene.frame_set(original_frame)
+
+        self.report(
+            {"INFO"},
+            f"Baked {frames} frame(s) of '{cable.name}' into '{baked_obj.name}' (self-contained)",
+        )
         return {"FINISHED"}
 
 

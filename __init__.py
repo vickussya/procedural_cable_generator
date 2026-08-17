@@ -14,7 +14,11 @@ from bpy.props import PointerProperty
 from .operators import (
     PCG_OT_add_selected_colliders,
     PCG_OT_attach_control,
+    PCG_OT_bake_cable_to_mesh,
+    PCG_OT_bake_simulation,
+    PCG_OT_delete_simulation_bake,
     PCG_OT_detach_control,
+    PCG_OT_export_cable_alembic,
     PCG_OT_create_cable_from_object_chain,
     PCG_OT_create_cable_from_selection,
     PCG_OT_create_cables_from_out_mid_in,
@@ -38,6 +42,10 @@ _CLASSES = (
     PCG_OT_add_selected_colliders,
     PCG_OT_attach_control,
     PCG_OT_detach_control,
+    PCG_OT_bake_simulation,
+    PCG_OT_delete_simulation_bake,
+    PCG_OT_bake_cable_to_mesh,
+    PCG_OT_export_cable_alembic,
     PCG_PT_cable_panel,
 )
 
