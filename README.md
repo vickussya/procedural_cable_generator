@@ -13,7 +13,7 @@ and make layout/iteration faster while experimenting with cable routing and dres
 A **classic Blender add-on**, targeting **Blender 5.2 LTS**. The add-on root is the repository folder itself (it
 contains `__init__.py`).
 
-1. Zip the repo folder `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
+1. Code > download zip.
 2. In Blender: `Edit > Preferences > Add-ons > Install...`
 3. Select that zip and enable **Procedural Cable Generator**.
 
