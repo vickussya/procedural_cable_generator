@@ -100,6 +100,40 @@ experimental — its behavior may change in future Blender point releases.
 > Because this is a simulation, **play forward from frame 1** rather than scrubbing. The solver carries state
 > between frames, so jumping around the timeline shows partially-solved results.
 
+### Tier: Hero or Background
+
+Set per cable, so a shot can mix a few expensive cables with many cheap ones.
+
+- **Hero** — full cloth simulation with pinning and collision. Use for cables the shot features.
+- **Background** — cheap procedural sway: no solver, no collision, held still at both ends. Use for the many
+  cables that only need to look alive. Measured at roughly an eighth of Hero's cost.
+
+Background cables have their own *Sway Amount / Speed / Scale / Resolution* settings and ignore the physics and
+collision settings entirely. Switching tier is instant and reversible.
+
+### Presets
+
+*Floppy Wire*, *Heavy Cable* and *Frayed Tangle* set thickness, mass, stiffness, bend, damping, friction and
+resolution together as a starting point. Editing any of those settings afterwards switches the preset to *Custom*.
+
+Worth knowing: **mass and bend do not change the shape of a cable once it has settled** — a hanging cable's shape
+is fixed by its length and span, much as a pendulum's period is independent of its mass. They do change how a cable
+reacts to being pushed or dragged, which is where the presets visibly differ.
+
+*Frayed Tangle* currently only supplies parameters; true cable-to-cable tangling needs self-collision, which the
+Blender 5.2 node solver does not yet support.
+
+### Attaching controls to a character
+
+1. Select the `CTRL_*` empties you want to attach.
+2. Shift-select the target **last** so it is active — either an object, or an armature with the bone you want
+   selected in Pose Mode.
+3. Click **Attach Controls To Active** under *Attach Controls*.
+
+The control keeps its current position and then follows the bone or object. Since pinned controls hold exactly,
+attaching one to a hand bone makes the cable end track that hand while the rest of the cable simulates.
+**Detach Controls** releases them again without moving them.
+
 ### Settings
 
 **Appearance** — *Thickness*, *Profile Resolution*. Purely visual; see the table above.
@@ -157,8 +191,7 @@ To make a cable interact with geometry, do one of these instead:
 
 ### Not implemented yet
 
-Bone attachment, cable presets, Hero/Background performance tiers, baking, and self-collision are still in
-progress.
+Baking (simulation cache and bake-to-keyframes) and self-collision are still in progress.
 
 ## Repo layout
 

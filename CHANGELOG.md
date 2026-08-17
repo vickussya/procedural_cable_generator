@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dynamics (Phase 3): bone attachment, presets, and performance tiers.**
+  - **Attach Controls To Active** / **Detach Controls** (`pcg.attach_control`, `pcg.detach_control`) attach control
+    empties to an armature bone or another object, so a cable end can hang from a hand or trail behind a character.
+    `utils.parent_keep_world` gained an optional `bone_name`; object parenting is unchanged.
+  - **Presets**: *Floppy Wire*, *Heavy Cable*, *Frayed Tangle*, setting thickness, mass, stiffness, bend, damping,
+    friction and resolution together. Editing any of those switches the preset to *Custom*. Values were picked
+    against measurement: mass and bend do not change the shape of a *settled* hanging cable (that is fixed by its
+    length and span), but they clearly change how it responds to being pushed — sweeping a collider through each
+    preset displaced the cable 6.42 / 5.19 / 3.06 respectively. *Frayed Tangle* supplies parameters only; genuine
+    cable-to-cable tangling needs self-collision, which the 5.2 node solver has no input for.
+  - **Hero / Background tiers**, per cable. Hero is the full cloth simulation. Background is cheap noise sway with
+    no solver and no collision, tapered to zero at both ends — measured at 0.02 s versus Hero's 0.16 s over 60
+    frames. Switching tier swaps the node group in place.
 - **Dynamics (Phase 2): collision and pin modes.**
   - `Pin Controls` setting with three modes. **All Controls** (default) keeps Phase 1 behavior, pinning every
     `CTRL_*`. **Ends Only** pins just the first and last control, so middle controls still shape the cable's rest
