@@ -1,102 +1,154 @@
 # Procedural Cable Generator (Blender Add-on)
 
-Simple add-on that creates a cable as a Bezier curve driven by control empties, and can optionally simulate it so
-it drapes over and collides with characters and props.
+Creates cables as Bezier curves driven by control empties, and can optionally simulate them so they sag, drape over
+characters and props, get dragged along, and tangle.
 
 ## Background
 
 This tool started as a small workflow script during an environment scene project, to automate repetitive cable setup
 and make layout/iteration faster while experimenting with cable routing and dressing.
 
-## Install (classic add-on)
+## Install
 
-This project is a **classic Blender add-on** and targets **Blender 5.2 LTS**.
+A **classic Blender add-on**, targeting **Blender 5.2 LTS**. The add-on root is the repository folder itself (it
+contains `__init__.py`).
 
-The add-on root is the **repository folder itself** (it contains `__init__.py`).
-
-1. Zip the **repo folder** `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
+1. Zip the repo folder `procedural_cable_generator/` so the zip contains `procedural_cable_generator/__init__.py`.
 2. In Blender: `Edit > Preferences > Add-ons > Install...`
 3. Select that zip and enable **Procedural Cable Generator**.
 
-## Use
+The panel appears at `View3D > Sidebar (N) > Cable > Cable Generator`.
 
-Open the UI here:
+> **Upgrading?** Restart Blender after reinstalling. Blender keeps the previous version's modules loaded, and the
+> add-on will fail to enable with a "cannot import name" error until it is restarted.
 
-`View3D > Sidebar (N) > Cable > Cable Generator`
+---
 
-All creation modes generate a Bezier curve plus control empties in a dedicated collection under `Procedural Cables`.
-Moving the `CTRL_*` empties updates the cable shape.
+## How it works
 
-### Create modes
+Worth reading once — it explains why the settings behave the way they do.
 
-#### 1) From 2 Objects (quick start)
+### A cable is a curve plus control empties
 
-1. Select exactly **two** objects.
-2. Make sure the **active** object is the start (last selected).
-3. Set **Middle Controls** (0 = straighter, higher = curvier).
-4. (Optional) Enable **Parent End Controls** so the start/end controls follow the selected objects.
-5. Click **Create Cable From 2 Selected Objects**.
+Every creation mode produces the same two things inside a collection under `Procedural Cables`:
 
-#### 2) From Selected Objects (Chain)
+- a **`CABLE_*` Bezier curve** — the visible cable, given its thickness by Blender's curve bevel;
+- a set of **`CTRL_*` empties** — one per curve point.
 
-Create a cable that passes through **2+ selected objects** (useful for routing a cable across props).
+Each curve point is wired to its empty by a **driver** that reads the empty's world position. So moving an empty
+moves the cable, and that keeps working no matter how the empty got there — dragged by hand, parented to a prop, or
+following an armature bone. This is the whole static system, and it never runs any Python while you work.
 
-1. Select **two or more** objects.
-2. Set **Chain Order**:
-   - **Nearest**: builds a nearest-neighbor chain starting from the active object
-   - **Selection**: uses Blender's selection list as-is
-   - **Name**: orders by object name
-3. (Optional) Enable **Parent Chain Controls** to parent each control to its corresponding selected object.
+### Dynamics replaces the cable's geometry, it doesn't move the curve points
+
+When you click **Make Dynamic**, a Geometry Nodes modifier is added to the curve. It ignores the curve's own points
+and rebuilds the cable from scratch each frame:
+
+1. A hidden helper mesh, **`PINS_<cable>`**, holds one vertex per `CTRL_*` empty, each following its empty with a
+   Hook modifier. This is the bridge between your controls and the simulation.
+2. Those vertices are joined into a path, smoothed, and **subdivided** into the simulated points
+   (*Divisions Per Segment* controls how many).
+3. Because subdivision is even, the original controls land on **known indices**, so they can be pinned at full
+   strength — which is why posed controls hold *exactly* rather than approximately.
+4. Blender 5.2's **Cloth Dynamics** node solves the result, using your Mass / Stiffness / Bend / Damping settings.
+5. The solved points are converted back to a curve and **beveled into a tube** inside the same node tree.
+
+Two consequences worth knowing:
+
+- **The `CTRL_*` empties are inputs, not outputs.** They keep showing where you posed them; the simulated cable is
+  the modifier's output. This is also why "bake to keyframes" on the curve isn't offered — the simulated shape
+  isn't in the curve points to keyframe.
+- **No Python runs per frame.** Everything is evaluated by Blender's own dependency graph, so playback speed is
+  Blender's, not the add-on's.
+
+### Helper objects you'll see in the outliner
+
+| Name | What it is | Safe to delete? |
+|---|---|---|
+| `CABLE_*` | The visible cable curve | It *is* the cable |
+| `CTRL_*` | Control empties — move these to shape the cable | No, the cable follows them |
+| `PINS_*` | Hidden bridge between controls and the solver | No — removed automatically by *Remove Dynamics* |
+| `CLOTH_*` | Hidden ribbon simulated by legacy cloth, only when Self Collision is on | No — removed by *Disable Self Collision* |
+| `BAKED_*` | Result of *Convert To Baked Mesh* | Yes, it's an output |
+| `Cable Colliders` | Collection of objects cables can hit | It's just a collection |
+
+---
+
+## Creating cables
+
+All modes share **Cable Settings** at the top of the panel: *Cable Name*, *Slack* (negative sags), *Thickness*,
+*Bevel Resolution* and *Control Size*.
+
+### 1) From 2 Objects
+
+1. Select exactly **two** objects; the **active** one (last selected) is the start.
+2. Set **Middle Controls** (0 = straighter, more = curvier).
+3. Optionally enable **Parent End Controls** so the ends follow those objects.
+4. Click **Create Cable From 2 Selected Objects**.
+
+### 2) From Selected Objects (Chain)
+
+Routes one cable through **2+ objects** — useful for running a cable across props.
+
+1. Select two or more objects.
+2. Set **Chain Order** — *Nearest* (nearest-neighbour from the active object), *Selection* (Blender's order), or
+   *Name*.
+3. Optionally enable **Parent Chain Controls**.
 4. Click **Create Cable From Selected Objects (Chain)**.
 
-Tip: after creating the chain cable, you can freely move the middle `CTRL_*` empties to make the cable messy,
-tangled, or to route it around scene geometry.
+### 3) Free Cable (Cursor)
 
-#### 3) Free Cable (Cursor)
+Controls only, no selection needed. Place the 3D cursor, set **Free Controls** and **Free Length**, and click
+**Create Free Cable (Cursor)**. Then route it by moving the empties.
 
-Create a cable with controls only (no object selection required), then move controls by hand to route it anywhere.
+### 4) Coil / Roll (Cursor)
 
-1. Place the 3D cursor where you want the cable to start.
-2. Set **Free Controls** (total number of control empties) and **Free Length**.
-3. Click **Create Free Cable (Cursor)**.
-
-#### 4) Coil / Roll (Cursor)
-
-Winds a cable into a coil or roll — a rope coil dropped on the ground, a spool on a reel, a spring.
+For a coil of cable dropped on the ground, a hank on a hook, or a drum on a reel.
 
 1. Place the 3D cursor where the coil should sit.
-2. Set **Coil Radius**, **Turns** and **Pitch**. Pitch is the rise per turn: keep it small (a few cm) for a coil
-   stacked almost flat, larger for a stretched spring.
-3. Set **Controls Per Turn** for roundness, and **Randomness** so the coil looks hand-wound rather than
-   machine-perfect. **Seed** gives a different variation of the same settings.
-4. Pick the **Coil Axis** — `Z` winds upward as if dropped on the ground, `Y`/`X` wind on their side like a reel.
-5. Click **Create Coiled Cable (Cursor)**.
+2. Pick a **Coil Preset** and click **Create Coiled Cable (Cursor)**. That's the whole workflow:
 
-The coil is a normal cable, so you can still move its `CTRL_*` empties and make it dynamic afterwards. The shape is
-generated directly rather than simulated into place, because letting physics coil a cable is unreliable.
+   | Preset | Look |
+   |---|---|
+   | **Ground Coil** | Nested rings spiralling outward, sitting flat — cable coiled and dropped |
+   | **Hank** | Tight, slightly messy loop, as carried or hung on a hook |
+   | **Cable Drum** | Neatly wound on a reel, standing on its side |
+   | **Loose Heap** | Wide, irregular, untidy pile |
 
-#### 5) Tied Bundle (2 Objects)
+3. **Seed** gives a different random variation of the same preset.
 
-Creates several cables running together as a bundle, cinched at both ends — a loom or zip-tied run.
+Under **Coil Shape** you can override the details, which switches the preset to *Custom*:
 
-1. Select exactly **two** objects (active is the start), as for *From 2 Objects*.
-2. Set **Cables** (how many), **Spread** (how far they separate mid-run) and **Variation** (how much each cable
-   differs). **Seed** reshuffles the arrangement.
-3. It also uses **Middle Controls** and **Slack** from *Cable Settings* at the top.
-4. Click **Create Tied Bundle From 2 Objects**.
+- **Inner / Outer Radius** — a larger outer radius spirals outward, which is how cable actually coils. Equal values
+  give a uniform drum.
+- **Pitch** — rise per turn. Keep it tiny (a centimetre or two) for a coil lying flat; large values give a spring.
+- **Controls Per Turn** — roundness. **Randomness** — how hand-wound it looks. **Coil Axis** — `Z` winds upward as
+  if dropped, `Y`/`X` wind on their side like a reel.
 
-The cables converge exactly at the two objects and fan out in between, which is what reads as "tied". Each cable
-gets its own collection and controls, so you can shape or simulate them individually afterwards.
+The coil's shape is *generated*, not simulated into place, because relying on physics to coil a cable is
+unreliable. It's a normal cable afterwards, so it can be reshaped and made dynamic.
+
+### 5) Tied Bundle (2 Objects)
+
+Several cables running together and cinched at both ends — a loom or zip-tied run.
+
+1. Select exactly **two** objects (active is the start).
+2. Set **Cables**, **Spread** (how far they separate mid-run) and **Variation** (how much they differ). **Seed**
+   reshuffles. It also uses **Middle Controls** and **Slack** from the top of the panel.
+3. Click **Create Tied Bundle From 2 Objects**.
+
+The cables meet exactly at the two objects and fan out between them — that convergence is what reads as "tied".
+Each cable gets its own collection and controls, so you can shape or simulate them individually, including making
+one Hero and the rest Background.
 
 ### Legacy mode
 
-If you already have empties named like `OUT_01`, `MID_01`, `IN_01`, you can enable **Show Legacy Tools**
-in the panel and run **Create Cables From OUT/MID/IN**.
+If you already have empties named `OUT_01`, `MID_01`, `IN_01`, enable **Show Legacy Tools** and run
+**Create Cables From OUT/MID/IN**.
 
-### Changing a cable after it is created
+### Changing a cable after it exists
 
-The **Cable Settings** at the top of the panel apply to *newly created* cables only — they do not retro-edit
-existing ones. To change a cable that already exists:
+**Cable Settings** apply to *newly created* cables only — they don't retro-edit existing ones.
 
 | What you want | Static cable | Dynamic cable |
 |---|---|---|
@@ -105,167 +157,165 @@ existing ones. To change a cable that already exists:
 | Smoothness along its length | `Object Data > Shape > Resolution Preview U` | **Advanced > Divisions Per Segment** |
 | Shape | Move the `CTRL_*` empties | Move the `CTRL_*` empties |
 
-On a dynamic cable, *Divisions Per Segment* sets both simulation resolution and rendered smoothness, because the
-cable is rebuilt from its simulated points. The Appearance settings also write back to the curve, so a cable keeps
-its look if you later remove dynamics.
+On a dynamic cable the Appearance settings also write back to the curve, so it keeps its look if you later remove
+dynamics.
+
+---
 
 ## Dynamics (Experimental)
 
-Requires **Blender 5.2 LTS**. Any cable created above can be simulated without recreating it.
-
-This is built on Blender 5.2's **Cloth Dynamics (Experimental)** node asset, which Blender itself labels
-experimental — its behavior may change in future Blender point releases.
+Requires **Blender 5.2 LTS**. Any cable can be simulated without recreating it. This is built on Blender's
+**Cloth Dynamics (Experimental)** node asset — Blender itself labels it experimental, so behaviour may shift in
+future point releases.
 
 ### Quick start
 
-1. Select a cable's curve object (e.g. `CABLE_Cable`).
-2. In the panel, open **Dynamics (Experimental)** and click **Make Dynamic**.
-3. Go to **frame 1** and press **Play**. The cable is pinned at its `CTRL_*` controls and sags between them under
-   gravity — pose the controls by hand, then let physics settle the rest.
-4. Tweak the settings live while it plays.
-5. **Remove Dynamics** reverts the cable to fully manual/driver-based control at any time.
+1. Select a `CABLE_*` curve.
+2. Click **Make Dynamic**.
+3. Go to **frame 1** and press **Play**. The cable is pinned at its controls and sags between them.
+4. Tweak settings live while it plays.
+5. **Remove Dynamics** returns it to plain driver-based control at any time.
 
-> Because this is a simulation, **play forward from frame 1** rather than scrubbing. The solver carries state
-> between frames, so jumping around the timeline shows partially-solved results.
+> **Play forward from frame 1, don't scrub.** The solver carries state between frames, so jumping around the
+> timeline shows half-solved results that look broken.
 
 ### Tier: Hero or Background
 
-Set per cable, so a shot can mix a few expensive cables with many cheap ones.
+Per cable, so a shot can mix a few expensive cables with many cheap ones.
 
-- **Hero** — full cloth simulation with pinning and collision. Use for cables the shot features.
-- **Background** — cheap procedural sway: no solver, no collision, held still at both ends. Use for the many
-  cables that only need to look alive. Measured at roughly an eighth of Hero's cost.
+- **Hero** — full cloth simulation with pinning and collision. For cables the shot features.
+- **Background** — cheap procedural sway: no solver, no collision, ends held still. For the many cables that only
+  need to look alive. Measured at roughly an eighth of Hero's cost.
 
-Background cables have their own *Sway Amount / Speed / Scale / Resolution* settings and ignore the physics and
-collision settings entirely. Switching tier is instant and reversible.
+Background cables get their own *Sway Amount / Speed / Scale / Resolution* and ignore the physics and collision
+settings entirely. Switching tier is instant and reversible.
+
+### Pin Controls
+
+Which `CTRL_*` empties hold the cable while it simulates. This is the setting that most often explains "why isn't
+it doing what I expect".
+
+- **All Controls** (default) — every control pinned, so the cable keeps the pose you set. Use for **coils** and any
+  shape you posed deliberately.
+- **Ends Only** — only the first and last pinned. Middle controls still shape the rest path, but the span between
+  them is free to sag, drape and collide. **Required for a cable to interact with anything.**
+- **None** — nothing pinned; the whole cable falls.
+
+A pinned control is a **hard constraint** the solver cannot overrule. That's what makes posed controls exact, and
+it's also why an all-pinned cable can't drape onto a collider.
 
 ### Presets
 
 *Floppy Wire*, *Heavy Cable* and *Frayed Tangle* set thickness, mass, stiffness, bend, damping, friction and
-resolution together as a starting point. Editing any of those settings afterwards switches the preset to *Custom*.
+resolution together. Editing any of them switches to *Custom*.
 
-Worth knowing: **mass and bend do not change the shape of a cable once it has settled** — a hanging cable's shape
-is fixed by its length and span, much as a pendulum's period is independent of its mass. They do change how a cable
-reacts to being pushed or dragged, which is where the presets visibly differ.
+**Mass and Bend don't change the shape of a cable once it has settled.** A hanging cable's shape is set by its
+length and span, much as a pendulum's period is independent of its mass. They change how it responds to being
+pushed or dragged, which is where the presets visibly differ. If you raise Mass expecting more droop, add slack
+instead.
 
-*Frayed Tangle* sets the stiffness and friction for a messy cable, but on its own it cannot make a cable tangle
-with *itself* — the Blender 5.2 node solver has no self-collision. Pair it with **Self Collision** below for real
-tangling.
+### Physics settings
 
-### Attaching controls to a character
-
-1. Select the bone you want in **Pose Mode**, then return to Object Mode. Clicking a bone in the Outliner is not
-   enough — Blender does not mark it selected, and the add-on will refuse rather than attach to the wrong thing.
-2. Select the `CTRL_*` empties you want to attach.
-3. Shift-select the armature (or plain object) **last** so it is active.
-4. Click **Attach Controls To Active** under *Attach Controls*. The status bar confirms which bone was used.
-
-The control keeps its current position and then follows the bone or object. Since pinned controls hold exactly,
-attaching one to a hand bone makes the cable end track that hand while the rest of the cable simulates.
-**Detach Controls** releases them again without moving them.
-
-### Settings
-
-**Appearance** — *Thickness*, *Profile Resolution*. Purely visual; see the table above.
-
-**Physics**
-
-- **Mass** — heavier cables sag more and carry more momentum.
-- **Stiffness** — resistance to stretching along the cable's length.
-- **Bend Resistance** — resistance to kinking. Low values give floppy wire, high values stiff hose.
+- **Mass** — weight and momentum when something moves the cable.
+- **Stiffness** — resistance to stretching along its length.
+- **Bend Resistance** — resistance to kinking. Low is floppy wire, high is stiff hose.
 - **Damping** — how quickly motion settles. Raise it if a cable keeps swinging.
-- **Friction** — how much the cable grips surfaces it slides across.
-- **Collision Radius** — the cable's effective thickness for contact, independent of its visual *Thickness*.
+- **Friction** — how much it grips surfaces it slides across.
+- **Collision Radius** — effective thickness for contact, independent of the visual *Thickness*.
 
-**Advanced** — raise with care, as these cost performance.
-
-- **Substeps** / **Constraint Steps** — solver accuracy per frame.
-- **Divisions Per Segment** — simulated points between each pair of controls.
-
-### Pin Controls
-
-Decides which `CTRL_*` empties hold the cable while it simulates:
-
-- **All Controls** (default) — every control is pinned, so the cable keeps the pose you set.
-- **Ends Only** — only the first and last controls are pinned. Middle controls still shape the cable's rest path,
-  but the span between them is free to sag, drape and collide. **Use this for cables interacting with anything.**
-- **None** — nothing is pinned and the whole cable falls.
+**Advanced** (costs performance): **Substeps** / **Constraint Steps** for solver accuracy, and
+**Divisions Per Segment** for how many simulated points sit between each pair of controls.
 
 ### Collision with characters and props
 
-1. Select the character/prop mesh objects the cable should hit.
-2. Click **Add Selected As Colliders**, under *Collision Setup* at the bottom of the panel. This adds a collider
-   modifier to each and puts them in a `Cable Colliders` collection, which is assigned to your dynamic cables.
-3. Set the cable's **Pin Controls** to *Ends Only* (or *None*) so it has a free span to drape.
-4. Go to frame 1 and play — the cable now collides with, drapes over and is pushed by those objects.
+1. Select the character/prop **meshes** the cable should hit.
+2. Click **Add Selected As Colliders** under *Collision Setup* at the bottom of the panel. They get a collider
+   modifier and land in a `Cable Colliders` collection, which is assigned to your dynamic cables automatically.
+3. Set the cable's **Pin Controls** to *Ends Only* so it has a free span.
+4. Go to frame 1 and play.
 
-The panel warns you if a cable has no colliders assigned, or has every control pinned — the two states in which
-collision silently does nothing.
+The panel warns you in the two states where collision silently does nothing: no colliders assigned, or every
+control pinned.
 
-Colliders must be meshes, and are set up as *deforming*, so animated and armature-driven characters work.
-Re-running **Add Selected As Colliders** updates existing colliders, so you can use the operator's redo panel
-(`F9`) to retune **Margin** and **Friction** — raise Margin if cables sink into thin or fast-moving geometry.
+Colliders must be meshes and are set up as *deforming*, so animated and armature-driven characters work. Re-running
+the operator updates existing colliders, so `F9` lets you retune **Margin** and **Friction** — raise Margin if
+cables sink into thin or fast-moving geometry.
 
-### Don't animate a pinned control into geometry
+### Attaching controls to a character
 
-A pinned control is a **hard constraint**: the cable is forced to that exact point, and collision cannot override
-it. Animating a pinned control into a mesh therefore drags the cable straight through it. This is a limitation of
-pinning rather than a bug, and no amount of solver tuning avoids it.
+1. Select the bone in **Pose Mode**, then return to Object Mode. Clicking a bone in the **Outliner is not enough** —
+   Blender doesn't mark it selected, and the add-on will refuse rather than attach to the wrong thing.
+2. Select the `CTRL_*` empties.
+3. Shift-select the armature (or plain object) **last**, so it's active.
+4. Click **Attach Controls To Active**. The status bar confirms which bone was used — if it names the armature
+   instead of a bone, the bone wasn't selected in Pose Mode.
 
-To make a cable interact with geometry, do one of these instead:
-
-- **Let it fall.** Set **Pin Controls** to *Ends Only*, place the middle controls above the object, and play from
-  frame 1. Gravity drapes the cable onto the mesh — no animation needed. This is the easiest way to test.
-- **Animate the character, not the cable.** Set the character up as a collider and animate *it* through the draped
-  cable. This is the intended workflow and stays stable even at speed.
+The control keeps its position and then follows the bone. Because pinned controls hold exactly, attaching one to a
+hand bone makes the cable end track that hand while the rest simulates. **Detach Controls** releases them without
+moving them.
 
 ### Baking
 
-Three outputs, so you can pick per cable or per shot. All are in the *Bake* box on a Hero cable.
+Three outputs, in the *Bake* box on a Hero cable. All use the scene's Frame Start/End range.
 
-- **Bake Simulation** — fills Blender's native node simulation cache for the scene frame range, so scrubbing is
-  fast and the result is stable. **Delete Bake** (trash icon) clears it. The cable still depends on the live setup.
-- **Convert To Baked Mesh** — creates a `BAKED_<cable>` mesh with one shape key per frame, animated. Entirely
-  self-contained in the `.blend`: it keeps working if you delete the cable, the controls or the colliders. Best for
-  locking a shot down. The `.blend` grows with frame count.
-- **Export Alembic (.abc)** — writes the evaluated cable out for rendering or handing to another department. The
-  **Export Folder** defaults to `//`, meaning the folder holding the current `.blend`, and can be overridden with
-  the folder picker. If the `.blend` has not been saved, `//` has nowhere to point, so the export goes to a
-  temporary folder and warns you to save first.
-
-All three use the scene's Frame Start/End range.
+- **Bake Simulation** — fills Blender's native simulation cache so scrubbing is fast and stable. **Delete Bake**
+  (trash icon) clears it. The cable still depends on the live setup.
+- **Convert To Baked Mesh** — creates a `BAKED_<cable>` mesh with one animated shape key per frame. Fully
+  self-contained: it keeps working even if you delete the cable, controls and colliders. Best for locking a shot
+  down; the `.blend` grows with frame count.
+- **Export Alembic (.abc)** — writes the evaluated cable out for rendering or handoff. **Export Folder** defaults
+  to `//` (the folder holding the `.blend`) and can be overridden with the folder picker. If the `.blend` is
+  unsaved, `//` has nowhere to point, so the export goes to a temp folder and warns you to save first.
 
 ### Self Collision (optional, heavy)
 
-Blender 5.2's node cloth solver cannot collide a cable with itself, so cables that need to genuinely tangle are
-routed through Blender's older Cloth simulation on a hidden proxy object instead. It is **off by default** and
-Hero-tier only. Turn it on with **Enable Self Collision**, and tune **Self Distance** — how close the cable may
-come to itself before pushing apart.
+Lets a cable collide with **itself**, so coils, loops and heaps have volume instead of interpenetrating. Blender
+5.2's node solver can't do this, so the cable is routed through Blender's older Cloth simulation on a hidden
+`CLOTH_*` ribbon proxy, and drawn from that ribbon's centre line. **Off by default**, Hero tier only.
 
-Things to know before using it:
+Turn it on with **Enable Self Collision** and tune **Self Distance** — how close the cable may come to itself
+before pushing apart.
 
-- It is **noticeably slower** than the normal solver. Reserve it for the few cables where visible tangling matters.
-- **On a coil, set Pin Controls to *All Controls*.** A coil is a posed shape — with *Ends Only* nothing holds its
-  turns up, so it collapses and thrashes. That looks like a self-collision failure but is just an unsupported
-  cable: measured 0.23 of movement with *All Controls* against 6.4 with *Ends Only*. Use *Ends Only* for cables
-  meant to fall and drape, not for coils.
+Use it only where tangling is visible: a cable spanning two points can never touch itself, so it would cost
+performance for nothing.
+
+Things to know:
+
+- It is **noticeably slower** than the normal solver.
+- **On a coil, use *All Controls*.** A coil is a posed shape; with *Ends Only* nothing holds its turns up, so it
+  collapses and thrashes. That looks like a self-collision failure but is just an unsupported cable — measured 0.23
+  of movement with *All Controls* against 6.4 with *Ends Only*.
 - The proxy is a flat ribbon, so a slack cable can buckle sideways more than a round cable would, and pinned
-  controls are held by a spring rather than exactly. If you need controls pinned precisely, leave self collision
-  off.
+  controls are held by a spring rather than exactly. If precise pinning matters more than tangling, leave it off.
 
-### Not implemented yet
+---
 
-Nothing outstanding from the original plan. Cloth Dynamics remains experimental in Blender itself, so behavior may
-shift in future point releases.
+## Gotchas
+
+Behaviours that look like bugs but aren't:
+
+- **Don't animate a pinned control into geometry.** A pin is a hard constraint, so the cable is dragged straight
+  through the collider. Either let the cable fall onto the object (*Ends Only* + gravity), or animate the
+  **character** through a draped cable — the intended workflow, stable even at speed.
+- **Scrubbing shows half-solved results.** Play forward from frame 1.
+- **Mass and Bend don't change a settled cable's shape.** See *Presets* above.
+- **Cable Settings don't retro-edit existing cables.** See the table above.
+- **A restart is needed after reinstalling the add-on.**
+
+---
 
 ## Repo layout
 
-- `__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
-- `operators.py` Operators for creating cables (including coils and bundles) and setting up dynamics/colliders.
-- `properties.py` Scene settings, per-cable dynamics settings, and UI properties.
-- `panel.py` 3D Viewport sidebar panel.
-- `utils.py` Shared utility functions.
-- `dynamics.py` Geometry Nodes cloth-dynamics setup for the Dynamics feature.
+- `__init__.py` — add-on entry point (`bl_info`, register/unregister).
+- `operators.py` — all operators: the creation modes, dynamics, attachment, colliders and baking.
+- `properties.py` — scene creation settings and per-cable dynamics settings.
+- `panel.py` — the 3D Viewport sidebar panel.
+- `utils.py` — shared helpers: collections, naming, empties, parenting, drivers, curve building, and the helix and
+  bundle maths (plain functions, testable without Blender).
+- `dynamics.py` — the Dynamics feature: Geometry Nodes trees, pin anchors, cloth proxies, colliders, bake helpers.
+
+See [AGENTS.md](AGENTS.md) for conventions to follow when changing the code, and [CHANGELOG.md](CHANGELOG.md) for
+what changed and why.
 
 ## License
 
