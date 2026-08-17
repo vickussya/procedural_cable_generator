@@ -205,6 +205,75 @@ def _update_preset_value(self, context: bpy.types.Context) -> None:
 class PCG_DynamicsSettings(bpy.types.PropertyGroup):
     """Per-cable dynamics settings, active on a CABLE_* curve object once Dynamics is enabled."""
 
+    # Held here rather than read back from the modifier, because the background tier's node
+    # group has no Pin Anchors socket - reading it from there loses the reference as soon as
+    # the tier is switched.
+    anchor_object: PointerProperty(
+        name="Pin Anchors",
+        type=bpy.types.Object,
+        description="Internal helper mesh whose vertices follow this cable's control empties",
+    )
+
+    tier: EnumProperty(
+        name="Tier",
+        items=(
+            (
+                "HERO",
+                "Hero",
+                "Full cloth simulation with pinning and collision. Use for cables the shot "
+                "actually features",
+            ),
+            (
+                "BACKGROUND",
+                "Background",
+                "Cheap procedural sway with no solver and no collision. Use for the many cables "
+                "that only need to look alive",
+            ),
+        ),
+        default="HERO",
+        description="How much simulation this cable gets",
+        update=_update_dynamics_settings,
+    )
+
+    sway_amount: FloatProperty(
+        name="Sway Amount",
+        default=0.05,
+        min=0.0,
+        soft_max=1.0,
+        description="How far a background cable drifts from its resting shape",
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_update_dynamics_settings,
+    )
+
+    sway_speed: FloatProperty(
+        name="Sway Speed",
+        default=0.3,
+        min=0.0,
+        soft_max=5.0,
+        description="How quickly a background cable's sway animates",
+        update=_update_dynamics_settings,
+    )
+
+    sway_scale: FloatProperty(
+        name="Sway Scale",
+        default=0.5,
+        min=0.0,
+        soft_max=5.0,
+        description="Size of the sway pattern along the cable. Lower values bend it as a whole, "
+        "higher values ripple it",
+        update=_update_dynamics_settings,
+    )
+
+    sway_resample: IntProperty(
+        name="Sway Resolution",
+        default=24,
+        min=2,
+        soft_max=100,
+        description="Points used to draw a background cable's sway",
+        update=_update_dynamics_settings,
+    )
+
     preset: EnumProperty(
         name="Preset",
         items=(

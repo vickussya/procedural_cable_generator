@@ -81,52 +81,64 @@ class PCG_PT_cable_panel(bpy.types.Panel):
             if dynamics.is_dynamics_enabled(cable):
                 dyn = cable.pcg_dynamics
                 col = box.column(align=True)
-                col.label(text="Preset:")
-                col.prop(dyn, "preset", text="")
+                col.label(text="Tier:")
+                col.prop(dyn, "tier", text="")
 
-                col = box.column(align=True)
-                col.label(text="Appearance:")
-                col.prop(dyn, "thickness")
-                col.prop(dyn, "profile_resolution")
+                if dyn.tier == "BACKGROUND":
+                    col = box.column(align=True)
+                    col.label(text="Sway (no collision):")
+                    col.prop(dyn, "sway_amount")
+                    col.prop(dyn, "sway_speed")
+                    col.prop(dyn, "sway_scale")
+                    col.prop(dyn, "sway_resample")
+                else:
+                    col = box.column(align=True)
+                    col.label(text="Preset:")
+                    col.prop(dyn, "preset", text="")
 
-                col = box.column(align=True)
-                col.label(text="Physics:")
-                col.prop(dyn, "mass")
-                col.prop(dyn, "stiffness")
-                col.prop(dyn, "bend")
-                col.prop(dyn, "damping")
-                col.prop(dyn, "friction")
-                col.prop(dyn, "collision_radius")
+                    col = box.column(align=True)
+                    col.label(text="Appearance:")
+                    col.prop(dyn, "thickness")
+                    col.prop(dyn, "profile_resolution")
 
-                box.separator()
-                # Label on its own row: the property name is truncated to "Pin Cont..." when
-                # drawn inline in a narrow sidebar.
-                col = box.column(align=True)
-                col.label(text="Pin Controls:")
-                col.prop(dyn, "pin_mode", text="")
+                    col = box.column(align=True)
+                    col.label(text="Physics:")
+                    col.prop(dyn, "mass")
+                    col.prop(dyn, "stiffness")
+                    col.prop(dyn, "bend")
+                    col.prop(dyn, "damping")
+                    col.prop(dyn, "friction")
+                    col.prop(dyn, "collision_radius")
 
-                col = box.column(align=True)
-                col.label(text="Collision Collection:")
-                col.prop(dyn, "collision_collection", text="")
+                    box.separator()
+                    # Label on its own row: the property name is truncated to "Pin Cont..."
+                    # when drawn inline in a narrow sidebar.
+                    col = box.column(align=True)
+                    col.label(text="Pin Controls:")
+                    col.prop(dyn, "pin_mode", text="")
 
-                # The two ways collision silently does nothing: no colliders assigned, or
-                # every control pinned so the cable is held rigid and cannot drape onto them.
-                if dyn.collision_collection is None:
-                    warn = box.column(align=True)
-                    warn.label(text="No colliders assigned.", icon="ERROR")
-                    warn.label(text="Use Collision Setup below.")
-                elif dyn.pin_mode == "ALL":
-                    warn = box.column(align=True)
-                    warn.label(text="All controls pinned.", icon="ERROR")
-                    warn.label(text="Pins override collision, so the")
-                    warn.label(text="cable is dragged through mesh.")
-                    warn.label(text="Use Ends Only to collide.")
+                    col = box.column(align=True)
+                    col.label(text="Collision Collection:")
+                    col.prop(dyn, "collision_collection", text="")
 
-                adv = box.box()
-                adv.label(text="Advanced (raise with care):")
-                adv.prop(dyn, "substeps")
-                adv.prop(dyn, "constraint_steps")
-                adv.prop(dyn, "segment_divisions")
+                    # The two ways collision silently does nothing: no colliders assigned,
+                    # or every control pinned so the cable is held rigid and cannot drape.
+                    if dyn.collision_collection is None:
+                        warn = box.column(align=True)
+                        warn.label(text="No colliders assigned.", icon="ERROR")
+                        warn.label(text="Use Collision Setup below.")
+                    elif dyn.pin_mode == "ALL":
+                        warn = box.column(align=True)
+                        warn.label(text="All controls pinned.", icon="ERROR")
+                        warn.label(text="Pins override collision, so the")
+                        warn.label(text="cable is dragged through mesh.")
+                        warn.label(text="Use Ends Only to collide.")
+
+                    adv = box.box()
+                    adv.label(text="Advanced (raise with care):")
+                    adv.prop(dyn, "substeps")
+                    adv.prop(dyn, "constraint_steps")
+                    adv.prop(dyn, "segment_divisions")
 
                 box.operator(PCG_OT_remove_cable_dynamics.bl_idname, icon="X")
             else:

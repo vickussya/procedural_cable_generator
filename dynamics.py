@@ -8,7 +8,11 @@ from .utils import is_cable_curve_object, unique_name
 CLOTH_ASSET_BLEND_RELATIVE_PATH = os.path.join("assets", "nodes", "geometry_nodes_dynamics_assets.blend")
 CLOTH_ASSET_GROUP_NAME = "Cloth Dynamics (Experimental)"
 WRAPPER_GROUP_NAME = "PCG Cable Dynamics"
+SWAY_GROUP_NAME = "PCG Cable Sway"
 DYNAMICS_MODIFIER_NAME = "PCG Dynamics"
+
+TIER_HERO = "HERO"
+TIER_BACKGROUND = "BACKGROUND"
 
 # Bumped whenever the wrapper node group's layout changes, so .blend files holding an
 # older group get a freshly built one instead of silently reusing an incompatible tree.
@@ -146,6 +150,112 @@ def make_collider(
     _set_modifier_input(mod, "Friction", friction)
     _set_modifier_input(mod, "Margin", margin)
     return newly_added
+
+
+def get_or_create_sway_group() -> bpy.types.NodeTree:
+    """Background-tier group: cheap noise sway, no solver and no collision.
+
+    Unlike the hero group this deforms the cable's *own* geometry, so Blender's native
+    curve bevel still applies and no pin anchor or in-group profile is needed.
+    """
+    existing = bpy.data.node_groups.get(SWAY_GROUP_NAME)
+    if existing is not None and existing.get(WRAPPER_VERSION_KEY) == WRAPPER_GROUP_VERSION:
+        return existing
+
+    group_name = unique_name(SWAY_GROUP_NAME, {g.name for g in bpy.data.node_groups})
+    ng = bpy.data.node_groups.new(group_name, "GeometryNodeTree")
+    ng[WRAPPER_VERSION_KEY] = WRAPPER_GROUP_VERSION
+    iface = ng.interface
+    iface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
+    iface.new_socket("Sway Amount", in_out="INPUT", socket_type="NodeSocketFloat")
+    iface.new_socket("Sway Speed", in_out="INPUT", socket_type="NodeSocketFloat")
+    iface.new_socket("Sway Scale", in_out="INPUT", socket_type="NodeSocketFloat")
+    iface.new_socket("Resample Count", in_out="INPUT", socket_type="NodeSocketInt")
+    iface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
+
+    nodes = ng.nodes
+    links = ng.links
+    gin = nodes.new("NodeGroupInput")
+    gout = nodes.new("NodeGroupOutput")
+
+    # Resample so there are enough points to sway smoothly; the control points alone are
+    # too sparse to read as movement.
+    resample = nodes.new("GeometryNodeResampleCurve")
+    links.new(gin.outputs["Geometry"], resample.inputs["Curve"])
+    links.new(gin.outputs["Resample Count"], resample.inputs["Count"])
+
+    # Scroll the noise field over time instead of running a solver.
+    scene_time = nodes.new("GeometryNodeInputSceneTime")
+    time_offset = nodes.new("ShaderNodeMath")
+    time_offset.operation = "MULTIPLY"
+    links.new(scene_time.outputs["Seconds"], time_offset.inputs[0])
+    links.new(gin.outputs["Sway Speed"], time_offset.inputs[1])
+
+    position = nodes.new("GeometryNodeInputPosition")
+    scaled_position = nodes.new("ShaderNodeVectorMath")
+    scaled_position.operation = "SCALE"
+    links.new(position.outputs["Position"], scaled_position.inputs[0])
+    links.new(gin.outputs["Sway Scale"], scaled_position.inputs["Scale"])
+
+    drift = nodes.new("ShaderNodeCombineXYZ")
+    links.new(time_offset.outputs["Value"], drift.inputs["X"])
+
+    sample_point = nodes.new("ShaderNodeVectorMath")
+    sample_point.operation = "ADD"
+    links.new(scaled_position.outputs["Vector"], sample_point.inputs[0])
+    links.new(drift.outputs["Vector"], sample_point.inputs[1])
+
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.noise_dimensions = "3D"
+    links.new(sample_point.outputs["Vector"], noise.inputs["Vector"])
+
+    # Noise Color is 0..1 per channel; recentre so the cable sways both ways.
+    centred = nodes.new("ShaderNodeVectorMath")
+    centred.operation = "SUBTRACT"
+    centred.inputs[1].default_value = (0.5, 0.5, 0.5)
+    links.new(noise.outputs["Color"], centred.inputs[0])
+
+    # Taper to zero at both ends so a background cable stays attached where it is fixed.
+    # The 0..1 position along the cable comes from the point index over the resample count.
+    # Two other routes were tried and measured wrong here: Spline Parameter's Factor read as
+    # 0 everywhere, and Attribute Domain Size reported a Point Count of 0 for the curve. The
+    # resample count is the point count by construction, so use it directly.
+    index = nodes.new("GeometryNodeInputIndex")
+
+    last_index = nodes.new("ShaderNodeMath")
+    last_index.operation = "SUBTRACT"
+    last_index.inputs[1].default_value = 1.0
+    links.new(gin.outputs["Resample Count"], last_index.inputs[0])
+
+    factor = nodes.new("ShaderNodeMath")
+    factor.operation = "DIVIDE"
+    links.new(index.outputs["Index"], factor.inputs[0])
+    links.new(last_index.outputs["Value"], factor.inputs[1])
+
+    envelope = nodes.new("ShaderNodeMath")
+    envelope.operation = "SINE"
+    pi_factor = nodes.new("ShaderNodeMath")
+    pi_factor.operation = "MULTIPLY"
+    pi_factor.inputs[1].default_value = 3.14159265
+    links.new(factor.outputs["Value"], pi_factor.inputs[0])
+    links.new(pi_factor.outputs["Value"], envelope.inputs[0])
+
+    amount = nodes.new("ShaderNodeMath")
+    amount.operation = "MULTIPLY"
+    links.new(envelope.outputs["Value"], amount.inputs[0])
+    links.new(gin.outputs["Sway Amount"], amount.inputs[1])
+
+    offset = nodes.new("ShaderNodeVectorMath")
+    offset.operation = "SCALE"
+    links.new(centred.outputs["Vector"], offset.inputs[0])
+    links.new(amount.outputs["Value"], offset.inputs["Scale"])
+
+    set_position = nodes.new("GeometryNodeSetPosition")
+    links.new(resample.outputs["Curve"], set_position.inputs["Geometry"])
+    links.new(offset.outputs["Vector"], set_position.inputs["Offset"])
+
+    links.new(set_position.outputs["Geometry"], gout.inputs["Geometry"])
+    return ng
 
 
 def get_or_create_wrapper_group() -> bpy.types.NodeTree:
@@ -460,7 +570,11 @@ def enable_dynamics(cable_obj: bpy.types.Object, settings) -> None:
     settings.thickness = cable_obj.data.bevel_depth
     settings.profile_resolution = cable_obj.data.bevel_resolution
 
+    settings.anchor_object = anchor_obj
+
     mod = cable_obj.modifiers.new(DYNAMICS_MODIFIER_NAME, type="NODES")
+    # Always build the hero group first so the anchor input can be set, then let
+    # sync_dynamics_settings swap in the background group if that tier is selected.
     mod.node_group = wrapper_group
     _set_modifier_input(mod, "Pin Anchors", anchor_obj)
 
@@ -479,13 +593,18 @@ def disable_dynamics(cable_obj: bpy.types.Object) -> None:
     if mod is None:
         return
 
-    anchor_obj = None
-    try:
-        anchor_obj = _get_modifier_input(mod, "Pin Anchors")
-    except KeyError:
-        pass
+    # Read from the settings rather than the modifier: the background tier's group has no
+    # Pin Anchors socket, so the modifier cannot be relied on to still hold it.
+    settings = cable_obj.pcg_dynamics
+    anchor_obj = settings.anchor_object
+    if anchor_obj is None:
+        try:
+            anchor_obj = _get_modifier_input(mod, "Pin Anchors")
+        except KeyError:
+            pass
 
     cable_obj.modifiers.remove(mod)
+    settings.anchor_object = None
 
     if anchor_obj is not None:
         anchor_mesh = anchor_obj.data
@@ -494,10 +613,32 @@ def disable_dynamics(cable_obj: bpy.types.Object) -> None:
             bpy.data.meshes.remove(anchor_mesh)
 
 
+def node_group_for_tier(tier: str) -> bpy.types.NodeTree:
+    if tier == TIER_BACKGROUND:
+        return get_or_create_sway_group()
+    return get_or_create_wrapper_group()
+
+
 def sync_dynamics_settings(cable_obj: bpy.types.Object, settings) -> None:
     mod = cable_obj.modifiers.get(DYNAMICS_MODIFIER_NAME)
     if mod is None:
         return
+
+    # Switching tier swaps the node group in place, restoring the anchor from the settings
+    # so the hero setup survives a round trip through the background tier.
+    wanted = node_group_for_tier(settings.tier)
+    if mod.node_group is not wanted:
+        mod.node_group = wanted
+    if settings.tier != TIER_BACKGROUND and settings.anchor_object is not None:
+        _set_modifier_input(mod, "Pin Anchors", settings.anchor_object)
+
+    if settings.tier == TIER_BACKGROUND:
+        _set_modifier_input(mod, "Sway Amount", settings.sway_amount)
+        _set_modifier_input(mod, "Sway Speed", settings.sway_speed)
+        _set_modifier_input(mod, "Sway Scale", settings.sway_scale)
+        _set_modifier_input(mod, "Resample Count", settings.sway_resample)
+        return
+
     _set_modifier_input(mod, "Mass", settings.mass)
     _set_modifier_input(mod, "Stiffness", settings.stiffness)
     _set_modifier_input(mod, "Bend", settings.bend)
