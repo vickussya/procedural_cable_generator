@@ -11,6 +11,77 @@ from bpy.props import (
 from . import dynamics
 
 
+# Ready-made coil shapes. Real coiled cable nests outward rather than stacking into a
+# slinky, so these mostly keep pitch low and grow the radius instead.
+_COIL_PRESETS = {
+    "GROUND": {
+        "coil_radius": 0.28,
+        "coil_radius_end": 0.46,
+        "coil_turns": 3.5,
+        "coil_pitch": 0.012,
+        "coil_controls_per_turn": 8,
+        "coil_randomness": 0.04,
+        "coil_axis": "Z",
+    },
+    "HANK": {
+        "coil_radius": 0.22,
+        "coil_radius_end": 0.26,
+        "coil_turns": 5.0,
+        "coil_pitch": 0.02,
+        "coil_controls_per_turn": 8,
+        "coil_randomness": 0.10,
+        "coil_axis": "Z",
+    },
+    "DRUM": {
+        "coil_radius": 0.40,
+        "coil_radius_end": 0.40,
+        "coil_turns": 9.0,
+        "coil_pitch": 0.035,
+        "coil_controls_per_turn": 10,
+        "coil_randomness": 0.015,
+        "coil_axis": "Y",
+    },
+    "HEAP": {
+        "coil_radius": 0.30,
+        "coil_radius_end": 0.62,
+        "coil_turns": 4.5,
+        "coil_pitch": 0.02,
+        "coil_controls_per_turn": 7,
+        "coil_randomness": 0.30,
+        "coil_axis": "Z",
+    },
+}
+
+_suspend_coil_preset = False
+
+
+def _apply_coil_preset(settings, context) -> None:
+    global _suspend_coil_preset
+    if _suspend_coil_preset:
+        return
+    values = _COIL_PRESETS.get(settings.coil_preset)
+    if values is None:  # "CUSTOM" keeps whatever is set
+        return
+
+    _suspend_coil_preset = True
+    try:
+        for name, value in values.items():
+            setattr(settings, name, value)
+    finally:
+        _suspend_coil_preset = False
+
+
+def _coil_value_edited(settings, context) -> None:
+    """Hand-editing any coil setting means the shape is no longer a named preset."""
+    global _suspend_coil_preset
+    if not _suspend_coil_preset and settings.coil_preset != "CUSTOM":
+        _suspend_coil_preset = True
+        try:
+            settings.coil_preset = "CUSTOM"
+        finally:
+            _suspend_coil_preset = False
+
+
 class PCG_Settings(bpy.types.PropertyGroup):
     cable_name: StringProperty(
         name="Cable Name",
@@ -105,27 +176,78 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Total number of control empties for a free cable (including start/end)",
     )
 
+    coil_preset: EnumProperty(
+        name="Coil Preset",
+        items=(
+            (
+                "GROUND",
+                "Ground Coil",
+                "Cable coiled and dropped on the ground: nested rings spiralling outward, "
+                "barely stacked",
+            ),
+            (
+                "HANK",
+                "Hank",
+                "A tied-off hank of cable as carried or hung on a hook: tight, slightly messy",
+            ),
+            (
+                "DRUM",
+                "Cable Drum",
+                "Neatly wound on a spool or reel, standing on its side",
+            ),
+            (
+                "HEAP",
+                "Loose Heap",
+                "Cable dumped in an untidy pile, wide and irregular",
+            ),
+            ("CUSTOM", "Custom", "Settings edited by hand"),
+        ),
+        default="GROUND",
+        description=(
+            "Ready-made coil shapes. Pick one, place the 3D cursor and create - editing any "
+            "coil setting switches to Custom"
+        ),
+        update=_apply_coil_preset,
+    )
+
     coil_radius: FloatProperty(
-        name="Coil Radius",
-        default=0.35,
+        name="Inner Radius",
+        default=0.28,
         min=0.001,
         soft_max=5.0,
-        description="Radius of the coil",
+        description="Radius where the coil starts",
         subtype="DISTANCE",
         unit="LENGTH",
+        update=_coil_value_edited,
+    )
+
+    coil_radius_end: FloatProperty(
+        name="Outer Radius",
+        default=0.46,
+        min=0.001,
+        soft_max=5.0,
+        description=(
+            "Radius where the coil ends. Larger than the inner radius gives nested rings "
+            "spiralling outward, which is how cable actually coils on the ground; equal "
+            "values give a uniform drum"
+        ),
+        subtype="DISTANCE",
+        unit="LENGTH",
+        update=_coil_value_edited,
     )
 
     coil_turns: FloatProperty(
         name="Turns",
-        default=4.0,
+        default=3.5,
         min=0.25,
         soft_max=40.0,
         description="How many times the cable wraps around",
+        update=_coil_value_edited,
     )
 
     coil_pitch: FloatProperty(
         name="Pitch",
-        default=0.04,
+        default=0.012,
         soft_min=-1.0,
         soft_max=2.0,
         description=(
@@ -134,25 +256,28 @@ class PCG_Settings(bpy.types.PropertyGroup):
         ),
         subtype="DISTANCE",
         unit="LENGTH",
+        update=_coil_value_edited,
     )
 
     coil_controls_per_turn: IntProperty(
         name="Controls Per Turn",
-        default=6,
+        default=8,
         min=3,
         max=24,
         description="Control empties generated per turn. Higher gives a rounder coil",
+        update=_coil_value_edited,
     )
 
     coil_randomness: FloatProperty(
         name="Randomness",
-        default=0.08,
+        default=0.04,
         min=0.0,
         soft_max=1.0,
         description=(
             "Jitters the coil by this fraction of its radius, so it reads as hand-wound "
             "rather than machine-perfect"
         ),
+        update=_coil_value_edited,
     )
 
     coil_axis: EnumProperty(
@@ -164,6 +289,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         ),
         default="Z",
         description="Axis the cable is wound around",
+        update=_coil_value_edited,
     )
 
     coil_seed: IntProperty(

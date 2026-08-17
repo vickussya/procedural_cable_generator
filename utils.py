@@ -85,24 +85,31 @@ def helix_positions(
     axis: str = "Z",
     randomness: float = 0.0,
     seed: int = 0,
+    radius_end: float | None = None,
 ) -> list[Vector]:
-    """Positions along a helix, for coils and rolls of cable.
+    """Positions along a helix or spiral, for coils and rolls of cable.
 
     `pitch` is the rise per turn, so a small pitch gives a coil stacked almost flat while a
-    larger one gives a stretched spring. `randomness` jitters each point by up to that
-    fraction of the radius, which keeps a coil from looking machine-wound.
+    larger one gives a stretched spring. `radius_end` grows the radius from `radius` to that
+    value across the coil, which is what makes a cable coiled on the ground read as nested
+    rings rather than a stack of identical ones. `randomness` jitters each point by up to
+    that fraction of the radius, keeping a coil from looking machine-wound.
     """
     count = max(2, int(count))
     generator = random.Random(seed)
-    jitter = max(0.0, randomness) * radius
+    outer = radius if radius_end is None else radius_end
+    jitter = max(0.0, randomness) * max(radius, outer)
 
     positions: list[Vector] = []
     for i in range(count):
         t = i / (count - 1)
         angle = 2.0 * math.pi * turns * t
         along = pitch * turns * t
+        current_radius = radius + (outer - radius) * t
         # Build in a canonical Z-up frame, then rotate so the coil can lie on its side.
-        point = Vector((radius * math.cos(angle), radius * math.sin(angle), along))
+        point = Vector(
+            (current_radius * math.cos(angle), current_radius * math.sin(angle), along)
+        )
         if axis == "Y":
             point = Vector((point.x, point.z, point.y))
         elif axis == "X":

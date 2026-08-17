@@ -268,6 +268,7 @@ class PCG_OT_create_coiled_cable(bpy.types.Operator):
         positions = helix_positions(
             origin=context.scene.cursor.location.copy(),
             radius=settings.coil_radius,
+            radius_end=settings.coil_radius_end,
             turns=settings.coil_turns,
             pitch=settings.coil_pitch,
             count=count,

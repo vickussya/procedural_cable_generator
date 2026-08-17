@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Two new creation modes.**
+  - **Coil presets**: *Ground Coil*, *Hank*, *Cable Drum* and *Loose Heap*, so a roll can be dropped into a scene
+    without dialling settings. Editing any coil setting switches the preset to *Custom*.
+  - `helix_positions()` gained an `radius_end` argument, so a coil can spiral outward instead of stacking at a
+    fixed radius. Real cable coils as nested rings; a fixed radius with any pitch reads as a slinky, which is what
+    the previous defaults produced. Presets now favour a growing radius and a very low pitch.
   - **Coil / Roll (Cursor)** (`pcg.create_coiled_cable`) winds a cable along a helix at the 3D cursor, with radius,
     turns, pitch, controls per turn, wind axis and a seeded randomness so coils don't look machine-wound. A small
     pitch gives a coil stacked almost flat, a larger one a stretched spring. The shape is generated directly rather
