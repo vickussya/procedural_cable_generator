@@ -1,4 +1,5 @@
 import math
+import random
 
 import bpy
 from mathutils import Matrix, Vector
@@ -72,6 +73,92 @@ def offset_dir_for_slack(start: Vector, end: Vector) -> Vector:
         return Vector((0.0, 0.0, 1.0))
 
     return perp.normalized()
+
+
+def helix_positions(
+    *,
+    origin: Vector,
+    radius: float,
+    turns: float,
+    pitch: float,
+    count: int,
+    axis: str = "Z",
+    randomness: float = 0.0,
+    seed: int = 0,
+) -> list[Vector]:
+    """Positions along a helix, for coils and rolls of cable.
+
+    `pitch` is the rise per turn, so a small pitch gives a coil stacked almost flat while a
+    larger one gives a stretched spring. `randomness` jitters each point by up to that
+    fraction of the radius, which keeps a coil from looking machine-wound.
+    """
+    count = max(2, int(count))
+    generator = random.Random(seed)
+    jitter = max(0.0, randomness) * radius
+
+    positions: list[Vector] = []
+    for i in range(count):
+        t = i / (count - 1)
+        angle = 2.0 * math.pi * turns * t
+        along = pitch * turns * t
+        # Build in a canonical Z-up frame, then rotate so the coil can lie on its side.
+        point = Vector((radius * math.cos(angle), radius * math.sin(angle), along))
+        if axis == "Y":
+            point = Vector((point.x, point.z, point.y))
+        elif axis == "X":
+            point = Vector((point.z, point.x, point.y))
+
+        if jitter:
+            point += Vector(
+                (
+                    generator.uniform(-jitter, jitter),
+                    generator.uniform(-jitter, jitter),
+                    generator.uniform(-jitter, jitter),
+                )
+            )
+        positions.append(origin + point)
+
+    return positions
+
+
+def bundle_offset(
+    *,
+    index: int,
+    count: int,
+    spread: float,
+    basis_a: Vector,
+    basis_b: Vector,
+    variation: float = 0.0,
+    seed: int = 0,
+) -> Vector:
+    """Cross-section offset for one cable in a bundle of `count`.
+
+    Cables are placed around a ring in the plane spanned by `basis_a`/`basis_b`, so a bundle
+    reads as a loom rather than a flat row. `variation` jitters the radius per cable.
+    """
+    if count <= 1:
+        return Vector((0.0, 0.0, 0.0))
+
+    generator = random.Random(seed + index * 7919)
+    angle = 2.0 * math.pi * index / count
+    radius = spread
+    if variation:
+        radius *= 1.0 + generator.uniform(-variation, variation)
+
+    return (basis_a * math.cos(angle) + basis_b * math.sin(angle)) * radius
+
+
+def perpendicular_basis(start: Vector, end: Vector) -> tuple[Vector, Vector]:
+    """Two unit vectors spanning the plane across the start->end direction."""
+    first = offset_dir_for_slack(start, end)
+    line = end - start
+    if line.length < 1e-8:
+        second = Vector((1.0, 0.0, 0.0))
+    else:
+        second = first.cross(line.normalized())
+    if second.length < 1e-6:
+        second = Vector((0.0, 1.0, 0.0))
+    return first.normalized(), second.normalized()
 
 
 def make_empty(name: str, location_world: Vector, empty_size: float) -> bpy.types.Object:

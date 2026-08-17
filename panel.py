@@ -6,6 +6,8 @@ from .operators import (
     PCG_OT_create_cable_from_selection,
     PCG_OT_create_cables_from_out_mid_in,
     PCG_OT_create_free_cable,
+    PCG_OT_create_coiled_cable,
+    PCG_OT_create_cable_bundle,
     PCG_OT_add_selected_colliders,
     PCG_OT_attach_control,
     PCG_OT_bake_cable_to_mesh,
@@ -59,6 +61,28 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         box.prop(settings, "free_controls")
         box.prop(settings, "free_length")
         box.operator(PCG_OT_create_free_cable.bl_idname, icon="CURVE_BEZCURVE")
+
+        box = layout.box()
+        box.label(text="Coil / Roll:")
+        box.prop(settings, "coil_radius")
+        box.prop(settings, "coil_turns")
+        box.prop(settings, "coil_pitch")
+        box.prop(settings, "coil_controls_per_turn")
+        box.prop(settings, "coil_randomness")
+        col = box.column(align=True)
+        col.label(text="Coil Axis:")
+        col.prop(settings, "coil_axis", text="")
+        box.prop(settings, "coil_seed")
+        box.operator(PCG_OT_create_coiled_cable.bl_idname, icon="CURVE_NCIRCLE")
+
+        box = layout.box()
+        box.label(text="Tied Bundle (2 Objects):")
+        box.prop(settings, "bundle_count")
+        box.prop(settings, "bundle_spread")
+        box.prop(settings, "bundle_variation")
+        box.prop(settings, "bundle_seed")
+        box.label(text="Uses Middle Controls + Slack above.")
+        box.operator(PCG_OT_create_cable_bundle.bl_idname, icon="CURVE_BEZCURVE")
 
         layout.separator()
         layout.prop(settings, "show_legacy", toggle=True)

@@ -105,6 +105,110 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Total number of control empties for a free cable (including start/end)",
     )
 
+    coil_radius: FloatProperty(
+        name="Coil Radius",
+        default=0.35,
+        min=0.001,
+        soft_max=5.0,
+        description="Radius of the coil",
+        subtype="DISTANCE",
+        unit="LENGTH",
+    )
+
+    coil_turns: FloatProperty(
+        name="Turns",
+        default=4.0,
+        min=0.25,
+        soft_max=40.0,
+        description="How many times the cable wraps around",
+    )
+
+    coil_pitch: FloatProperty(
+        name="Pitch",
+        default=0.04,
+        soft_min=-1.0,
+        soft_max=2.0,
+        description=(
+            "Rise per turn. Small values give a coil stacked almost flat, larger values a "
+            "stretched spring"
+        ),
+        subtype="DISTANCE",
+        unit="LENGTH",
+    )
+
+    coil_controls_per_turn: IntProperty(
+        name="Controls Per Turn",
+        default=6,
+        min=3,
+        max=24,
+        description="Control empties generated per turn. Higher gives a rounder coil",
+    )
+
+    coil_randomness: FloatProperty(
+        name="Randomness",
+        default=0.08,
+        min=0.0,
+        soft_max=1.0,
+        description=(
+            "Jitters the coil by this fraction of its radius, so it reads as hand-wound "
+            "rather than machine-perfect"
+        ),
+    )
+
+    coil_axis: EnumProperty(
+        name="Coil Axis",
+        items=(
+            ("Z", "Z (lying flat)", "Coil stacks upward, as if dropped on the ground"),
+            ("Y", "Y", "Coil wound around the Y axis, as on a wall-mounted reel"),
+            ("X", "X", "Coil wound around the X axis"),
+        ),
+        default="Z",
+        description="Axis the cable is wound around",
+    )
+
+    coil_seed: IntProperty(
+        name="Seed",
+        default=0,
+        min=0,
+        description="Change for a different random variation of the same coil",
+    )
+
+    bundle_count: IntProperty(
+        name="Cables",
+        default=4,
+        min=2,
+        max=32,
+        description="How many cables to generate in the bundle",
+    )
+
+    bundle_spread: FloatProperty(
+        name="Spread",
+        default=0.06,
+        min=0.0,
+        soft_max=1.0,
+        description=(
+            "How far the cables separate between their tied ends. Ends stay together, so the "
+            "bundle reads as tied"
+        ),
+        subtype="DISTANCE",
+        unit="LENGTH",
+    )
+
+    bundle_variation: FloatProperty(
+        name="Variation",
+        default=0.35,
+        min=0.0,
+        max=1.0,
+        description="Randomises each cable's spread and sag so they do not look cloned",
+    )
+
+    bundle_seed: IntProperty(
+        name="Seed",
+        default=0,
+        min=0,
+        description="Change for a different random arrangement of the same bundle",
+    )
+
     show_legacy: BoolProperty(
         name="Show Legacy Tools",
         default=False,

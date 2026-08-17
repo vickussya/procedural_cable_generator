@@ -1,18 +1,22 @@
 import math
 import os
+import random
 
 import bpy
 
 from . import dynamics
 from .utils import (
+    bundle_offset,
     create_cable_curve,
     ensure_root_collection,
+    helix_positions,
     is_cable_curve_object,
     make_empty,
     new_child_collection,
     offset_dir_for_slack,
     ordered_selected_pair,
     parent_keep_world,
+    perpendicular_basis,
     unique_name,
 )
 
@@ -245,6 +249,143 @@ class PCG_OT_create_free_cable(bpy.types.Operator):
         context.view_layer.objects.active = curve_obj
         curve_obj.select_set(True)
         self.report({"INFO"}, f"Created free cable '{curve_obj.name}' with {len(controls)} controls")
+        return {"FINISHED"}
+
+
+class PCG_OT_create_coiled_cable(bpy.types.Operator):
+    bl_idname = "pcg.create_coiled_cable"
+    bl_label = "Create Coiled Cable (Cursor)"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        return context.mode == "OBJECT"
+
+    def execute(self, context: bpy.types.Context):
+        settings = context.scene.pcg_settings
+        count = max(3, int(round(settings.coil_turns * settings.coil_controls_per_turn)) + 1)
+
+        positions = helix_positions(
+            origin=context.scene.cursor.location.copy(),
+            radius=settings.coil_radius,
+            turns=settings.coil_turns,
+            pitch=settings.coil_pitch,
+            count=count,
+            axis=settings.coil_axis,
+            randomness=settings.coil_randomness,
+            seed=settings.coil_seed,
+        )
+
+        root = ensure_root_collection(context.scene)
+        cable_coll = new_child_collection(root, f"Cable_{settings.cable_name}")
+        controls = _create_controls_for_positions(
+            cable_coll=cable_coll,
+            cable_base_name=settings.cable_name,
+            positions=positions,
+            empty_size=settings.empty_size,
+            parent_objects=None,
+        )
+
+        existing_names = {o.name for o in bpy.data.objects} | {c.name for c in bpy.data.curves}
+        curve_obj = create_cable_curve(
+            collection=cable_coll,
+            cable_name=unique_name(f"CABLE_{settings.cable_name}", existing_names),
+            controls=controls,
+            thickness=settings.thickness,
+            bevel_resolution=settings.bevel_resolution,
+        )
+
+        context.view_layer.objects.active = curve_obj
+        curve_obj.select_set(True)
+        self.report(
+            {"INFO"},
+            f"Created coiled cable '{curve_obj.name}': "
+            f"{settings.coil_turns:g} turns, {len(controls)} controls",
+        )
+        return {"FINISHED"}
+
+
+class PCG_OT_create_cable_bundle(bpy.types.Operator):
+    bl_idname = "pcg.create_cable_bundle"
+    bl_label = "Create Tied Bundle From 2 Objects"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        a, b = ordered_selected_pair(context)
+        return a is not None and b is not None and context.mode == "OBJECT"
+
+    def execute(self, context: bpy.types.Context):
+        settings = context.scene.pcg_settings
+        start_obj, end_obj = ordered_selected_pair(context)
+        if not start_obj or not end_obj:
+            self.report({"ERROR"}, "Select exactly two objects (active object is Start)")
+            return {"CANCELLED"}
+
+        start_pos = start_obj.matrix_world.translation.copy()
+        end_pos = end_obj.matrix_world.translation.copy()
+        basis_a, basis_b = perpendicular_basis(start_pos, end_pos)
+        slack_dir = offset_dir_for_slack(start_pos, end_pos)
+        middle_controls = max(1, settings.middle_controls)
+
+        root = ensure_root_collection(context.scene)
+        generator = random.Random(settings.bundle_seed)
+        created = []
+
+        for cable_index in range(settings.bundle_count):
+            offset = bundle_offset(
+                index=cable_index,
+                count=settings.bundle_count,
+                spread=settings.bundle_spread,
+                basis_a=basis_a,
+                basis_b=basis_b,
+                variation=settings.bundle_variation,
+                seed=settings.bundle_seed,
+            )
+            # Vary each cable's sag a little so the bundle does not look cloned.
+            sag = settings.slack * (1.0 + generator.uniform(-settings.bundle_variation, settings.bundle_variation))
+
+            base_name = f"{settings.cable_name}_{cable_index + 1:02d}"
+            cable_coll = new_child_collection(root, f"Cable_{base_name}")
+
+            positions = [start_pos.copy()]
+            for i in range(middle_controls):
+                t = (i + 1) / (middle_controls + 1)
+                envelope = math.sin(math.pi * t)
+                # The offset tapers to zero at both ends, which is what makes the bundle
+                # read as tied there and loose in between.
+                point = start_pos.lerp(end_pos, t) + offset * envelope + slack_dir * (sag * envelope)
+                positions.append(point)
+            positions.append(end_pos.copy())
+
+            parent_objs = None
+            if settings.parent_end_controls:
+                parent_objs = [start_obj] + [None] * middle_controls + [end_obj]
+
+            controls = _create_controls_for_positions(
+                cable_coll=cable_coll,
+                cable_base_name=base_name,
+                positions=positions,
+                empty_size=settings.empty_size,
+                parent_objects=parent_objs,
+            )
+
+            existing_names = {o.name for o in bpy.data.objects} | {c.name for c in bpy.data.curves}
+            curve_obj = create_cable_curve(
+                collection=cable_coll,
+                cable_name=unique_name(f"CABLE_{base_name}", existing_names),
+                controls=controls,
+                thickness=settings.thickness,
+                bevel_resolution=settings.bevel_resolution,
+            )
+            created.append(curve_obj)
+
+        if created:
+            context.view_layer.objects.active = created[-1]
+            for obj in created:
+                obj.select_set(True)
+
+        self.report({"INFO"}, f"Created a tied bundle of {len(created)} cables")
         return {"FINISHED"}
 
 
