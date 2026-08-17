@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Two new creation modes.**
   - **Coil presets**: *Ground Coil*, *Hank*, *Cable Drum* and *Loose Heap*, so a roll can be dropped into a scene
     without dialling settings. Editing any coil setting switches the preset to *Custom*.
-  - `helix_positions()` gained an `radius_end` argument, so a coil can spiral outward instead of stacking at a
+  - `helix_positions()` gained a `radius_end` argument, so a coil can spiral outward instead of stacking at a
     fixed radius. Real cable coils as nested rings; a fixed radius with any pitch reads as a slinky, which is what
     the previous defaults produced. Presets now favour a growing radius and a very low pitch.
   - **Coil / Roll (Cursor)** (`pcg.create_coiled_cable`) winds a cable along a helix at the 3D cursor, with radius,
@@ -75,8 +75,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AGENTS.md` now documents a testing-strategy convention: new logic (especially upcoming cable dynamics math)
   should be written as plain functions separate from `bpy`/UI glue code, so headless unit tests can be added later
   without a refactor.
-
-### Added
 - **Dynamics (Phase 1, Experimental):** new `dynamics.py` module and "Make Dynamic"/"Remove Dynamics" operators
   (`pcg.make_cable_dynamic`, `pcg.remove_cable_dynamics`) let any existing cable curve be simulated with Blender
   5.2's node-based Cloth Dynamics (Experimental) solver, without recreating the cable.
@@ -90,8 +88,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Bend Resistance, Damping, Friction, Collision Radius, Pin Radius, and an Advanced group (Substeps, Constraint
     Steps, Simulation Resolution).
   - `utils.is_cable_curve_object()` helper added to identify add-on-generated cable curves for operator polling.
-
-### Added
 - Dynamics: `Add Selected As Colliders` now exposes **Margin**, **Friction** and **Deforming** in its redo panel
   (`F9`), and re-running it updates existing colliders instead of skipping them, so collider settings can be
   retuned without removing and re-adding them. Margin is the collider's surface standoff — raise it if cables
