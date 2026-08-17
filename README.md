@@ -60,6 +60,34 @@ Create a cable with controls only (no object selection required), then move cont
 2. Set **Free Controls** (total number of control empties) and **Free Length**.
 3. Click **Create Free Cable (Cursor)**.
 
+#### 4) Coil / Roll (Cursor)
+
+Winds a cable into a coil or roll — a rope coil dropped on the ground, a spool on a reel, a spring.
+
+1. Place the 3D cursor where the coil should sit.
+2. Set **Coil Radius**, **Turns** and **Pitch**. Pitch is the rise per turn: keep it small (a few cm) for a coil
+   stacked almost flat, larger for a stretched spring.
+3. Set **Controls Per Turn** for roundness, and **Randomness** so the coil looks hand-wound rather than
+   machine-perfect. **Seed** gives a different variation of the same settings.
+4. Pick the **Coil Axis** — `Z` winds upward as if dropped on the ground, `Y`/`X` wind on their side like a reel.
+5. Click **Create Coiled Cable (Cursor)**.
+
+The coil is a normal cable, so you can still move its `CTRL_*` empties and make it dynamic afterwards. The shape is
+generated directly rather than simulated into place, because letting physics coil a cable is unreliable.
+
+#### 5) Tied Bundle (2 Objects)
+
+Creates several cables running together as a bundle, cinched at both ends — a loom or zip-tied run.
+
+1. Select exactly **two** objects (active is the start), as for *From 2 Objects*.
+2. Set **Cables** (how many), **Spread** (how far they separate mid-run) and **Variation** (how much each cable
+   differs). **Seed** reshuffles the arrangement.
+3. It also uses **Middle Controls** and **Slack** from *Cable Settings* at the top.
+4. Click **Create Tied Bundle From 2 Objects**.
+
+The cables converge exactly at the two objects and fan out in between, which is what reads as "tied". Each cable
+gets its own collection and controls, so you can shape or simulate them individually afterwards.
+
 ### Legacy mode
 
 If you already have empties named like `OUT_01`, `MID_01`, `IN_01`, you can enable **Show Legacy Tools**
@@ -228,7 +256,7 @@ shift in future point releases.
 ## Repo layout
 
 - `__init__.py` Blender add-on entry point (`bl_info`, register/unregister).
-- `operators.py` Operators for creating cables and setting up dynamics/colliders.
+- `operators.py` Operators for creating cables (including coils and bundles) and setting up dynamics/colliders.
 - `properties.py` Scene settings, per-cable dynamics settings, and UI properties.
 - `panel.py` 3D Viewport sidebar panel.
 - `utils.py` Shared utility functions.

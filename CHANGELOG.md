@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Two new creation modes.**
+  - **Coil / Roll (Cursor)** (`pcg.create_coiled_cable`) winds a cable along a helix at the 3D cursor, with radius,
+    turns, pitch, controls per turn, wind axis and a seeded randomness so coils don't look machine-wound. A small
+    pitch gives a coil stacked almost flat, a larger one a stretched spring. The shape is generated directly rather
+    than simulated into place, since relying on physics to coil a cable is unreliable.
+  - **Tied Bundle From 2 Objects** (`pcg.create_cable_bundle`) creates several cables between two objects, spaced
+    around a ring in the cross-section plane and tapering to zero offset at the ends, so the bundle reads as tied
+    there and loose between. Each cable's spread and sag vary by a seeded amount, and each gets its own collection
+    so it can still be shaped or simulated individually.
+  - The helix and bundle maths are plain functions on `Vector`s in `utils.py`, verified independently of Blender's
+    operators per the project's testing convention.
 - **Dynamics (Phase 4): baking and optional self collision.**
   - **Bake Simulation** / **Delete Bake** drive Blender's native node simulation cache.
   - **Convert To Baked Mesh** writes the simulated result into a shape-keyed mesh inside the `.blend`, so it
