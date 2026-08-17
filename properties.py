@@ -121,18 +121,107 @@ def _update_dynamics_settings(self, context: bpy.types.Context) -> None:
         dynamics.sync_dynamics_settings(obj, self)
 
 
-def _update_profile(self, context: bpy.types.Context) -> None:
+def _mirror_profile_to_curve(settings) -> None:
     # Mirror onto the curve's own bevel so the cable keeps the same thickness if dynamics
     # is later removed, and so both paths stay driven by this one setting.
-    obj = self.id_data
+    obj = settings.id_data
     if obj.type == "CURVE":
-        obj.data.bevel_depth = self.thickness
-        obj.data.bevel_resolution = self.profile_resolution
+        obj.data.bevel_depth = settings.thickness
+        obj.data.bevel_resolution = settings.profile_resolution
+
+
+# Values a preset writes. Cables of different kinds differ mainly in thickness, how quickly
+# they settle, how readily they kink, and how much momentum they carry when something drags
+# them. Note that mass and bend do not change the shape of a *settled* hanging cable - that
+# is fixed by its length and span - but they do change how it responds to being pushed.
+_PRESETS = {
+    "FLOPPY": {
+        "thickness": 0.006,
+        "mass": 0.3,
+        "stiffness": 0.9,
+        "bend": 0.05,
+        "damping": 0.5,
+        "friction": 0.4,
+        "segment_divisions": 12,
+    },
+    "HEAVY": {
+        "thickness": 0.04,
+        "mass": 8.0,
+        "stiffness": 0.95,
+        "bend": 0.6,
+        "damping": 2.5,
+        "friction": 0.6,
+        "segment_divisions": 10,
+    },
+    "FRAYED": {
+        "thickness": 0.015,
+        "mass": 1.0,
+        "stiffness": 0.7,
+        "bend": 0.0,
+        "damping": 0.8,
+        "friction": 0.8,
+        "segment_divisions": 24,
+    },
+}
+
+# Guards the preset <-> individual-setting round trip: applying a preset writes the
+# individual settings, and editing one of those flips the preset back to Custom.
+_suspend_preset_sync = False
+
+
+def _apply_preset(self, context: bpy.types.Context) -> None:
+    global _suspend_preset_sync
+    if _suspend_preset_sync:
+        return
+    values = _PRESETS.get(self.preset)
+    if values is None:  # "CUSTOM" keeps whatever is currently set
+        return
+
+    _suspend_preset_sync = True
+    try:
+        for name, value in values.items():
+            setattr(self, name, value)
+    finally:
+        _suspend_preset_sync = False
+
+    _mirror_profile_to_curve(self)
+    _update_dynamics_settings(self, context)
+
+
+def _update_preset_value(self, context: bpy.types.Context) -> None:
+    """Update handler for settings a preset controls; hand-editing one means 'Custom'."""
+    global _suspend_preset_sync
+    if not _suspend_preset_sync and self.preset != "CUSTOM":
+        _suspend_preset_sync = True
+        try:
+            self.preset = "CUSTOM"
+        finally:
+            _suspend_preset_sync = False
+
+    _mirror_profile_to_curve(self)
     _update_dynamics_settings(self, context)
 
 
 class PCG_DynamicsSettings(bpy.types.PropertyGroup):
     """Per-cable dynamics settings, active on a CABLE_* curve object once Dynamics is enabled."""
+
+    preset: EnumProperty(
+        name="Preset",
+        items=(
+            ("FLOPPY", "Floppy Wire", "Thin, light, easily kinked wire"),
+            ("HEAVY", "Heavy Cable", "Thick cable with weight and momentum that settles slowly"),
+            (
+                "FRAYED",
+                "Frayed Tangle",
+                "Messy, high-resolution cable that kinks and grips readily. Pair with Self "
+                "Collision for tangling once that is available",
+            ),
+            ("CUSTOM", "Custom", "Settings edited by hand"),
+        ),
+        default="CUSTOM",
+        description="Starting point for a kind of cable. Editing any of its settings switches to Custom",
+        update=_apply_preset,
+    )
 
     thickness: FloatProperty(
         name="Thickness",
@@ -142,7 +231,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         description="Visual radius of the cable tube",
         subtype="DISTANCE",
         unit="LENGTH",
-        update=_update_profile,
+        update=_update_preset_value,
     )
 
     profile_resolution: IntProperty(
@@ -151,7 +240,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0,
         max=12,
         description="Roundness of the cable's cross-section",
-        update=_update_profile,
+        update=_update_preset_value,
     )
 
     mass: FloatProperty(
@@ -160,7 +249,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.001,
         soft_max=20.0,
         description="Simulated mass of the cable; higher values add weight and momentum",
-        update=_update_dynamics_settings,
+        update=_update_preset_value,
     )
 
     stiffness: FloatProperty(
@@ -169,7 +258,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Resistance to stretching along the cable's length (0 = very stretchy, 1 = rigid)",
-        update=_update_dynamics_settings,
+        update=_update_preset_value,
     )
 
     bend: FloatProperty(
@@ -178,7 +267,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Resistance to bending/kinking (0 = very floppy, 1 = stiff)",
-        update=_update_dynamics_settings,
+        update=_update_preset_value,
     )
 
     damping: FloatProperty(
@@ -187,7 +276,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         soft_max=10.0,
         description="Linear damping applied to the simulation; higher values settle faster with less swing",
-        update=_update_dynamics_settings,
+        update=_update_preset_value,
     )
 
     friction: FloatProperty(
@@ -196,7 +285,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Surface friction used against colliders",
-        update=_update_dynamics_settings,
+        update=_update_preset_value,
     )
 
     collision_radius: FloatProperty(
@@ -268,5 +357,5 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
             "Simulated points generated between each pair of CTRL_* controls. "
             "Higher gives smoother sag at a higher cost"
         ),
-        update=_update_dynamics_settings,
+        update=_update_preset_value,
     )

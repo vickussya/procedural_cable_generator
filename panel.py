@@ -81,6 +81,10 @@ class PCG_PT_cable_panel(bpy.types.Panel):
             if dynamics.is_dynamics_enabled(cable):
                 dyn = cable.pcg_dynamics
                 col = box.column(align=True)
+                col.label(text="Preset:")
+                col.prop(dyn, "preset", text="")
+
+                col = box.column(align=True)
                 col.label(text="Appearance:")
                 col.prop(dyn, "thickness")
                 col.prop(dyn, "profile_resolution")
