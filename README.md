@@ -190,9 +190,40 @@ To make a cable interact with geometry, do one of these instead:
 - **Animate the character, not the cable.** Set the character up as a collider and animate *it* through the draped
   cable. This is the intended workflow and stays stable even at speed.
 
+### Baking
+
+Three outputs, so you can pick per cable or per shot. All are in the *Bake* box on a Hero cable.
+
+- **Bake Simulation** — fills Blender's native node simulation cache for the scene frame range, so scrubbing is
+  fast and the result is stable. **Delete Bake** (trash icon) clears it. The cable still depends on the live setup.
+- **Convert To Baked Mesh** — creates a `BAKED_<cable>` mesh with one shape key per frame, animated. Entirely
+  self-contained in the `.blend`: it keeps working if you delete the cable, the controls or the colliders. Best for
+  locking a shot down. The `.blend` grows with frame count.
+- **Export Alembic (.abc)** — writes the evaluated cable out for rendering or handing to another department. The
+  **Export Folder** defaults to `//`, meaning the folder holding the current `.blend`, and can be overridden with
+  the folder picker. If the `.blend` has not been saved, `//` has nowhere to point, so the export goes to a
+  temporary folder and warns you to save first.
+
+All three use the scene's Frame Start/End range.
+
+### Self Collision (optional, heavy)
+
+Blender 5.2's node cloth solver cannot collide a cable with itself, so cables that need to genuinely tangle are
+routed through Blender's older Cloth simulation on a hidden proxy object instead. It is **off by default** and
+Hero-tier only. Turn it on with **Enable Self Collision**, and tune **Self Distance** — how close the cable may
+come to itself before pushing apart.
+
+Two things to know before using it:
+
+- It is **noticeably slower** than the normal solver. Reserve it for the few cables where visible tangling matters.
+- The proxy is a flat ribbon, so a slack cable can buckle sideways more than a round cable would, and pinned
+  controls are held by a spring rather than exactly. If you need controls pinned precisely, leave self collision
+  off.
+
 ### Not implemented yet
 
-Baking (simulation cache and bake-to-keyframes) and self-collision are still in progress.
+Nothing outstanding from the original plan. Cloth Dynamics remains experimental in Blender itself, so behavior may
+shift in future point releases.
 
 ## Repo layout
 

@@ -24,7 +24,8 @@ package and contains `__init__.py` directly.
 | `operators.py` | All `bpy.types.Operator` subclasses that create cables (the four creation modes described below). |
 | `properties.py` | `PCG_Settings`, the `PropertyGroup` holding all scene-level UI/tool settings (attached to `Scene.pcg_settings`). |
 | `panel.py` | `PCG_PT_cable_panel`, the single 3D Viewport sidebar (N-panel) UI under `View3D > Sidebar > Cable`. |
-| `utils.py` | Shared helpers: collection management, unique naming, empty creation, parenting, driver wiring, and curve construction. No Blender operator/UI classes live here. |
+| `utils.py` | Shared helpers: collection management, unique naming, empty creation, parenting (objects and armature bones), driver wiring, and curve construction. No Blender operator/UI classes live here. |
+| `dynamics.py` | The Dynamics feature: builds the Geometry Nodes trees, the pin anchor and cloth proxy objects, collider setup, and the bake helpers. No operator/UI classes here either. |
 | `README.md` | User-facing install and usage instructions. |
 | `LICENSE` | GPL-3.0 license text. |
 | `.gitignore` | Standard Blender/Python/VS Code ignores. |
@@ -63,6 +64,20 @@ There is no test suite, no build tooling, and no external dependencies beyond `b
   *empty*.
 - Collections are always created/found via `utils.ensure_root_collection()` / `utils.new_child_collection()`, never
   by touching `bpy.data.collections` directly in operator code.
+
+**Dynamics conventions** (see `dynamics.py`):
+- Every generated node group carries a `pcg_wrapper_version` marker. Bump `WRAPPER_GROUP_VERSION` whenever a
+  tree's sockets change, so `.blend` files holding an older group get a freshly built one instead of silently
+  reusing an incompatible tree.
+- Modifier inputs are set through `_set_modifier_input`, because Blender 5.2 replaced the old
+  `modifier["Input_N"]` mechanism with `modifier.properties.inputs.Socket_N.value`.
+- Helper objects the artist should not touch (pin anchors, cloth proxies) are stored on the cable's
+  `pcg_dynamics` settings, not read back from the modifier — the tiers use different node groups and not all of
+  them expose the same sockets.
+- Anything that creates or removes an object belongs in an operator, not a property `update` handler. Tier
+  switching only swaps node groups for this reason; self collision has explicit Enable/Disable buttons.
+- Physics values fed to the bundled cloth asset are XPBD *compliance*, which is only meaningful very close to
+  zero; see `COMPLIANCE_SCALE` for the remap and its measured basis.
 
 **Code style to match:**
 - Type-hinted function signatures (`context: bpy.types.Context`, `-> list[bpy.types.Object]`, etc.).

@@ -12,6 +12,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dynamics (Phase 4): baking and optional self collision.**
+  - **Bake Simulation** / **Delete Bake** drive Blender's native node simulation cache.
+  - **Convert To Baked Mesh** writes the simulated result into a shape-keyed mesh inside the `.blend`, so it
+    survives without the live setup or any external file. It aborts with an error if the cable's vertex count
+    changes mid-bake rather than writing a desynchronised result.
+  - **Export Alembic (.abc)** writes the evaluated cable out, with an **Export Folder** setting defaulting to `//`
+    (beside the `.blend`) and a standard directory picker. An unsaved `.blend` resolves `//` to an empty string, so
+    that case falls back to the temp folder and warns to save first instead of failing; the panel warns too.
+  - Note: keyframing the Bezier points, as originally sketched, would capture only the control poses — the
+    simulated shape lives in the Geometry Nodes output, not the curve points. Hence the mesh and Alembic routes.
+  - **Self Collision** (off by default, Hero tier only) routes a cable through a legacy Cloth modifier on a proxy
+    object so it can tangle with itself, which the 5.2 node solver cannot do. Enabled and disabled with explicit
+    buttons, since toggling it creates or removes an object. Measured findings: legacy Cloth ignores edge-only
+    geometry entirely (an edge-only cable fell straight through a floor collider), so the proxy is a faced ribbon
+    whose middle row is the cable path; and the ribbon has to be wider than the self-collision distance or its own
+    rows inflate it. Limitations, documented in the README: the ribbon behaves like a flat strap so slack cables can
+    buckle sideways, and legacy cloth pins with a spring rather than a hard constraint.
 - **Dynamics (Phase 3): bone attachment, presets, and performance tiers.**
   - **Attach Controls To Active** / **Detach Controls** (`pcg.attach_control`, `pcg.detach_control`) attach control
     empties to an armature bone or another object, so a cable end can hang from a hand or trail behind a character.
