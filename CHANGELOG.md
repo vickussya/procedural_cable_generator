@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proxy. They are now excluded from the collider set.
 - Resolving cables from a selection of control empties scans each cable's collection once rather than once per
   selected empty, since this runs from `poll()` on every panel redraw.
+- **Dynamics settings only reached one cable.** Dynamics settings are stored on the cable object, so a slider only
+  ever wrote to the active one — with a bundle set up, every value had to be dialled in once per cable. Editing any
+  dynamics setting now applies to **all selected cables**, including presets and the tier, controlled by the new
+  **Edit All Selected Cables** toggle (on by default, shown once more than one cable is selected). A re-entrance
+  guard stops the mirrored write from bouncing back through each target's own update callback, and a preset's
+  individual writes are skipped in favour of mirroring the preset itself once.
 
 ### Added
 - **Copy Settings To Selected** (`pcg.copy_dynamics_settings`) pushes the active cable's dynamics settings onto the

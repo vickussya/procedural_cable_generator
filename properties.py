@@ -335,6 +335,15 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Change for a different random arrangement of the same bundle",
     )
 
+    sync_selected_cables: BoolProperty(
+        name="Edit All Selected Cables",
+        default=True,
+        description=(
+            "Apply every dynamics setting change to all selected cables at once. Turn it off "
+            "to tune one cable of a bundle on its own"
+        ),
+    )
+
     show_legacy: BoolProperty(
         name="Show Legacy Tools",
         default=False,
@@ -349,6 +358,59 @@ def _update_dynamics_settings(self, context: bpy.types.Context) -> None:
     obj = self.id_data
     if dynamics.is_dynamics_enabled(obj):
         dynamics.sync_dynamics_settings(obj, self)
+
+
+# Guards the mirror below against recursing: writing the value onto another cable fires that
+# cable's own update callback, which would otherwise mirror it straight back.
+_mirroring = False
+
+
+def _mirror_to_selected_cables(settings, context: bpy.types.Context, name: str) -> None:
+    """Apply one edited setting to every other selected cable.
+
+    Dynamics settings live on the cable object, so a slider only ever writes to the active
+    one. A Tied Bundle is several cables that are meant to behave alike, so without this
+    every setting would have to be dialled in seven times.
+    """
+    global _mirroring
+    # _suspend_preset_sync means a preset is mid-application: its individual writes are
+    # skipped here and the preset itself is mirrored once, at the end.
+    if _mirroring or _suspend_preset_sync:
+        return
+
+    scene = getattr(context, "scene", None)
+    if scene is None or not scene.pcg_settings.sync_selected_cables:
+        return
+
+    source = settings.id_data
+    if not dynamics.is_dynamics_enabled(source):
+        return
+
+    value = getattr(settings, name)
+    _mirroring = True
+    try:
+        for cable in dynamics.cables_for_selection(context):
+            if cable == source or not dynamics.is_dynamics_enabled(cable):
+                continue
+            # Writing through the property fires the target's own update callback, which
+            # re-syncs its modifier and flips its preset label exactly as the source's did.
+            setattr(cable.pcg_dynamics, name, value)
+    finally:
+        _mirroring = False
+
+
+def _mirrored(name: str, handler):
+    """Build an update callback for `name` that also mirrors the edit to selected cables.
+
+    Blender does not tell an update callback which property fired it, so the name is bound
+    here rather than discovered at call time.
+    """
+
+    def update(self, context: bpy.types.Context) -> None:
+        handler(self, context)
+        _mirror_to_selected_cables(self, context, name)
+
+    return update
 
 
 def _mirror_profile_to_curve(settings) -> None:
@@ -460,7 +522,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         "the cable passes through itself, lower it for tighter coils",
         subtype="DISTANCE",
         unit="LENGTH",
-        update=_update_dynamics_settings,
+        update=_mirrored("self_collision_distance", _update_dynamics_settings),
     )
 
     alembic_directory: StringProperty(
@@ -500,7 +562,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         ),
         default="HERO",
         description="How much simulation this cable gets",
-        update=_update_dynamics_settings,
+        update=_mirrored("tier", _update_dynamics_settings),
     )
 
     sway_amount: FloatProperty(
@@ -511,7 +573,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         description="How far a background cable drifts from its resting shape",
         subtype="DISTANCE",
         unit="LENGTH",
-        update=_update_dynamics_settings,
+        update=_mirrored("sway_amount", _update_dynamics_settings),
     )
 
     sway_speed: FloatProperty(
@@ -520,7 +582,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         soft_max=5.0,
         description="How quickly a background cable's sway animates",
-        update=_update_dynamics_settings,
+        update=_mirrored("sway_speed", _update_dynamics_settings),
     )
 
     sway_scale: FloatProperty(
@@ -530,7 +592,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         soft_max=5.0,
         description="Size of the sway pattern along the cable. Lower values bend it as a whole, "
         "higher values ripple it",
-        update=_update_dynamics_settings,
+        update=_mirrored("sway_scale", _update_dynamics_settings),
     )
 
     sway_resample: IntProperty(
@@ -539,7 +601,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=2,
         soft_max=100,
         description="Points used to draw a background cable's sway",
-        update=_update_dynamics_settings,
+        update=_mirrored("sway_resample", _update_dynamics_settings),
     )
 
     preset: EnumProperty(
@@ -557,7 +619,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         ),
         default="CUSTOM",
         description="Starting point for a kind of cable. Editing any of its settings switches to Custom",
-        update=_apply_preset,
+        update=_mirrored("preset", _apply_preset),
     )
 
     thickness: FloatProperty(
@@ -568,7 +630,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         description="Visual radius of the cable tube",
         subtype="DISTANCE",
         unit="LENGTH",
-        update=_update_preset_value,
+        update=_mirrored("thickness", _update_preset_value),
     )
 
     profile_resolution: IntProperty(
@@ -577,7 +639,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0,
         max=12,
         description="Roundness of the cable's cross-section",
-        update=_update_preset_value,
+        update=_mirrored("profile_resolution", _update_preset_value),
     )
 
     mass: FloatProperty(
@@ -586,7 +648,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.001,
         soft_max=20.0,
         description="Simulated mass of the cable; higher values add weight and momentum",
-        update=_update_preset_value,
+        update=_mirrored("mass", _update_preset_value),
     )
 
     stiffness: FloatProperty(
@@ -595,7 +657,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Resistance to stretching along the cable's length (0 = very stretchy, 1 = rigid)",
-        update=_update_preset_value,
+        update=_mirrored("stiffness", _update_preset_value),
     )
 
     bend: FloatProperty(
@@ -604,7 +666,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Resistance to bending/kinking (0 = very floppy, 1 = stiff)",
-        update=_update_preset_value,
+        update=_mirrored("bend", _update_preset_value),
     )
 
     damping: FloatProperty(
@@ -613,7 +675,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         soft_max=10.0,
         description="Linear damping applied to the simulation; higher values settle faster with less swing",
-        update=_update_preset_value,
+        update=_mirrored("damping", _update_preset_value),
     )
 
     friction: FloatProperty(
@@ -622,7 +684,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Surface friction used against colliders",
-        update=_update_preset_value,
+        update=_mirrored("friction", _update_preset_value),
     )
 
     collision_radius: FloatProperty(
@@ -633,7 +695,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         description="Effective thickness used for collision purposes (independent of the visual bevel thickness)",
         subtype="DISTANCE",
         unit="LENGTH",
-        update=_update_dynamics_settings,
+        update=_mirrored("collision_radius", _update_dynamics_settings),
     )
 
     substeps: IntProperty(
@@ -642,7 +704,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=1,
         soft_max=20,
         description="Simulation substeps per frame; higher is more stable but slower. Raise with care",
-        update=_update_dynamics_settings,
+        update=_mirrored("substeps", _update_dynamics_settings),
     )
 
     constraint_steps: IntProperty(
@@ -651,7 +713,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         min=1,
         soft_max=50,
         description="Constraint solver iterations per substep; higher is more stable but slower. Raise with care",
-        update=_update_dynamics_settings,
+        update=_mirrored("constraint_steps", _update_dynamics_settings),
     )
 
     pin_mode: EnumProperty(
@@ -672,7 +734,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
         ),
         default="ALL",
         description="Which control empties hold the cable in place during simulation",
-        update=_update_dynamics_settings,
+        update=_mirrored("pin_mode", _update_dynamics_settings),
     )
 
     collision_collection: PointerProperty(
@@ -682,7 +744,7 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
             "Collection of collider objects the cable can hit. Use 'Add Selected As Colliders' "
             "to set characters and props up for this"
         ),
-        update=_update_dynamics_settings,
+        update=_mirrored("collision_collection", _update_dynamics_settings),
     )
 
     segment_divisions: IntProperty(
@@ -694,5 +756,5 @@ class PCG_DynamicsSettings(bpy.types.PropertyGroup):
             "Simulated points generated between each pair of CTRL_* controls. "
             "Higher gives smoother sag at a higher cost"
         ),
-        update=_update_preset_value,
+        update=_mirrored("segment_divisions", _update_preset_value),
     )

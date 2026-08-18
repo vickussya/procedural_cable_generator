@@ -439,16 +439,8 @@ class PCG_OT_create_cables_from_out_mid_in(bpy.types.Operator):
 
 
 def selected_cables(context: bpy.types.Context) -> list[bpy.types.Object]:
-    """Cables the dynamics tools act on: the whole selection, plus the active object's cable.
-
-    A Tied Bundle or a set of coils is several cable curves, and they are all left selected
-    after generation, so acting on the active object alone would silently skip the rest.
-    """
-    objects = list(context.selected_objects or [])
-    active = context.active_object
-    if active is not None and active not in objects:
-        objects.append(active)
-    return dynamics.resolve_cables_for_objects(objects)
+    """Cables the dynamics operators act on; see dynamics.cables_for_selection."""
+    return dynamics.cables_for_selection(context)
 
 
 def _describe(cables: list[bpy.types.Object]) -> str:

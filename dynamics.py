@@ -679,6 +679,19 @@ def resolve_cables_for_objects(objects) -> list[bpy.types.Object]:
     return cables
 
 
+def cables_for_selection(context: bpy.types.Context) -> list[bpy.types.Object]:
+    """Cables the dynamics tools act on: the whole selection, plus the active object's cable.
+
+    A Tied Bundle or a set of coils is several cable curves, all left selected after
+    generation, so acting on the active object alone would silently skip the rest.
+    """
+    objects = list(getattr(context, "selected_objects", None) or [])
+    active = getattr(context, "active_object", None)
+    if active is not None and active not in objects:
+        objects.append(active)
+    return resolve_cables_for_objects(objects)
+
+
 def cable_helper_objects() -> set[bpy.types.Object]:
     """Pin anchors and cloth proxies owned by cables anywhere in the file.
 

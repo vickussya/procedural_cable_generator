@@ -119,9 +119,16 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                 box.label(text=f"Cable: {cable.name}", icon="OUTLINER_OB_CURVE")
 
             # The buttons below act on every selected cable, so say how many that is - a
-            # Tied Bundle leaves several selected and all of them are affected.
+            # Tied Bundle leaves several selected and all of them are affected. The settings
+            # themselves are stored per cable, hence the toggle: on, editing any of them
+            # below edits all of the selected cables at once.
             if len(cables) > 1:
                 box.label(text=f"{len(cables)} cables selected.", icon="OUTLINER_OB_CURVE")
+                box.prop(settings, "sync_selected_cables", toggle=True, icon="LINKED")
+                # Still offered with the toggle on, to re-align cables that were tuned
+                # separately before it was switched on.
+                if dynamics.is_dynamics_enabled(cable):
+                    box.operator(PCG_OT_copy_dynamics_settings.bl_idname, icon="DUPLICATE")
 
             if dynamics.is_dynamics_enabled(cable):
                 dyn = cable.pcg_dynamics
@@ -210,11 +217,6 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                         warn = bake.column(align=True)
                         warn.label(text="Unsaved .blend: exports go to", icon="ERROR")
                         warn.label(text="a temp folder. Save first.")
-
-                # Settings live per cable, so pushing the active one's onto the rest of the
-                # selection is how a bundle gets tuned as a unit.
-                if len(cables) > 1:
-                    box.operator(PCG_OT_copy_dynamics_settings.bl_idname, icon="DUPLICATE")
 
                 # A partially set-up selection (some cables added later, say) can be
                 # completed without deselecting the ones already dynamic.

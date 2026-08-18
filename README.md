@@ -186,8 +186,12 @@ selected cables**, not just the active one — select them (they are already sel
 click once. Selecting a `CTRL_*` empty counts as selecting the cable it drives. The panel shows how many cables
 your click will affect.
 
-Dynamics settings are stored **per cable**, so a slider only changes the active one. Tune that cable, then click
-**Copy Settings To Selected** to push its settings onto the rest of the selection.
+Dynamics settings are stored **per cable**, but with more than one selected the panel shows an **Edit All Selected
+Cables** toggle, on by default: every setting you change — sliders, *Pin Controls*, *Collision Collection*, the
+*Preset*, the *Tier* — is applied to all of them at once. Turn it off to tune one cable of a bundle on its own.
+
+**Copy Settings To Selected** pushes the active cable's whole set of settings onto the others in one go, for
+re-aligning cables that were tuned separately before the toggle was switched on.
 
 ### Tier: Hero or Background
 
