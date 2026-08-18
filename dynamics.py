@@ -657,6 +657,45 @@ def resolve_cable_for_object(obj: bpy.types.Object | None) -> bpy.types.Object |
     return None
 
 
+def resolve_cables_for_objects(objects) -> list[bpy.types.Object]:
+    """Every distinct cable curve reachable from `objects`, keeping selection order.
+
+    Generators like Tied Bundle leave several cables selected at once, so the dynamics
+    operators work from this rather than from the active object alone.
+    """
+    cables: list[bpy.types.Object] = []
+    # Resolving a control empty means scanning its collection, and a bundle is usually
+    # selected controls and all. Remembering each resolved cable's controls keeps that scan
+    # to once per cable rather than once per selected empty, since this runs from poll().
+    known_controls: set[bpy.types.Object] = set()
+    for obj in objects or ():
+        if obj in known_controls:
+            continue
+        cable = resolve_cable_for_object(obj)
+        if cable is None or cable in cables:
+            continue
+        cables.append(cable)
+        known_controls.update(c for c in get_cable_controls(cable) if c is not None)
+    return cables
+
+
+def cable_helper_objects() -> set[bpy.types.Object]:
+    """Pin anchors and cloth proxies owned by cables anywhere in the file.
+
+    These are meshes living in the cable's own collection, so a box select picks them up
+    alongside real props; callers filter them out rather than treating them as scene geometry.
+    """
+    helpers: set[bpy.types.Object] = set()
+    for obj in bpy.data.objects:
+        settings = getattr(obj, "pcg_dynamics", None)
+        if settings is None:
+            continue
+        for helper in (settings.anchor_object, settings.selfcol_object):
+            if helper is not None:
+                helpers.add(helper)
+    return helpers
+
+
 def is_dynamics_enabled(cable_obj: bpy.types.Object | None) -> bool:
     return cable_obj is not None and cable_obj.modifiers.get(DYNAMICS_MODIFIER_NAME) is not None
 
@@ -1027,3 +1066,43 @@ def sync_dynamics_settings(cable_obj: bpy.types.Object, settings) -> None:
     _set_modifier_input(mod, "Colliders", settings.collision_collection)
     _set_modifier_input(mod, "Thickness", settings.thickness)
     _set_modifier_input(mod, "Profile Resolution", settings.profile_resolution)
+
+
+# Settings "Copy Settings To Selected" carries across. The helper object pointers
+# (anchor_object, selfcol_object) and use_self_collision are deliberately absent: those name
+# per-cable objects that only the Enable/Disable operators may create or remove.
+COPYABLE_SETTINGS = (
+    "tier",
+    "thickness",
+    "profile_resolution",
+    "mass",
+    "stiffness",
+    "bend",
+    "damping",
+    "friction",
+    "collision_radius",
+    "substeps",
+    "constraint_steps",
+    "segment_divisions",
+    "pin_mode",
+    "collision_collection",
+    "self_collision_distance",
+    "sway_amount",
+    "sway_speed",
+    "sway_scale",
+    "sway_resample",
+    "alembic_directory",
+)
+
+
+def copy_dynamics_settings(source, target) -> None:
+    """Copy one cable's tuneable dynamics settings onto another's.
+
+    `preset` is written last on purpose: each individual value flips the preset label to
+    Custom on the way in, and re-applying the source's preset afterwards restores the label
+    while writing back exactly the values that were just copied.
+    """
+    for name in COPYABLE_SETTINGS:
+        setattr(target, name, getattr(source, name))
+    target.preset = source.preset
+    sync_dynamics_settings(target.id_data, target)

@@ -11,7 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Dynamics acted on one cable only.** Every dynamics tool resolved a single cable from the *active* object, so
+  clicking **Make Dynamic** on a freshly generated Tied Bundle set up one cable and silently left the rest inert,
+  even though the generator leaves them all selected. `dynamics.resolve_cables_for_objects()` now resolves the whole
+  selection, and Make Dynamic, Remove Dynamics, Enable/Disable Self Collision, Bake Simulation, Delete Bake, Convert
+  To Baked Mesh and Export Alembic all act on every selected cable. Reports name the cable when there is one and
+  count them when there are several; a cable that fails is reported without aborting the others.
+- **Colliders could only be assigned to the active cable.** *Add Selected As Colliders* now assigns the collider
+  collection to every selected cable that has dynamics, so a bundle gets its colliders in one click. Selecting the
+  cables alongside the collider meshes is what drives this, and the panel hint says so.
+- **A cable's own helper meshes could be turned into colliders.** Pin anchors and cloth proxies are meshes living in
+  the cable's collection, so selecting a bundle picked them up and made the cable collide with its own simulation
+  proxy. They are now excluded from the collider set.
+- Resolving cables from a selection of control empties scans each cable's collection once rather than once per
+  selected empty, since this runs from `poll()` on every panel redraw.
+
 ### Added
+- **Copy Settings To Selected** (`pcg.copy_dynamics_settings`) pushes the active cable's dynamics settings onto the
+  other selected cables, so a bundle can be tuned as a unit — the settings are per cable, so editing a slider only
+  ever affected the active one. The helper object pointers and self collision are deliberately not copied: those
+  name per-cable objects only the Enable/Disable operators may create. The preset is written last, since each
+  individual value flips the preset label to *Custom* on the way in.
+- The Dynamics panel shows how many cables the buttons will affect, and offers **Make Remaining Dynamic** when only
+  part of the selection is set up.
 - **Two new creation modes.**
   - **Coil presets**: *Ground Coil*, *Hank*, *Cable Drum* and *Loose Heap*, so a roll can be dropped into a scene
     without dialling settings. Editing any coil setting switches the preset to *Custom*.

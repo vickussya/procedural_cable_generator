@@ -27,6 +27,7 @@ from .operators import (
     PCG_OT_create_free_cable,
     PCG_OT_create_coiled_cable,
     PCG_OT_create_cable_bundle,
+    PCG_OT_copy_dynamics_settings,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
 )
@@ -45,6 +46,7 @@ _CLASSES = (
     PCG_OT_create_cables_from_out_mid_in,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
+    PCG_OT_copy_dynamics_settings,
     PCG_OT_add_selected_colliders,
     PCG_OT_attach_control,
     PCG_OT_detach_control,

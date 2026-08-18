@@ -179,6 +179,16 @@ future point releases.
 > **Play forward from frame 1, don't scrub.** The solver carries state between frames, so jumping around the
 > timeline shows half-solved results that look broken.
 
+### Working on several cables at once
+
+A **Tied Bundle** is several separate cables, and so is a set of coils. Every dynamics button acts on **all
+selected cables**, not just the active one — select them (they are already selected right after generating) and
+click once. Selecting a `CTRL_*` empty counts as selecting the cable it drives. The panel shows how many cables
+your click will affect.
+
+Dynamics settings are stored **per cable**, so a slider only changes the active one. Tune that cable, then click
+**Copy Settings To Selected** to push its settings onto the rest of the selection.
+
 ### Tier: Hero or Background
 
 Per cable, so a shot can mix a few expensive cables with many cheap ones.
@@ -228,11 +238,16 @@ instead.
 
 ### Collision with characters and props
 
-1. Select the character/prop **meshes** the cable should hit.
+1. Select the character/prop **meshes** the cable should hit — and, if you want them assigned right away, the
+   dynamic cables too.
 2. Click **Add Selected As Colliders** under *Collision Setup* at the bottom of the panel. They get a collider
-   modifier and land in a `Cable Colliders` collection, which is assigned to your dynamic cables automatically.
-3. Set the cable's **Pin Controls** to *Ends Only* so it has a free span.
+   modifier and land in a `Cable Colliders` collection, which is assigned to every selected dynamic cable. With no
+   cable in the selection it falls back to any dynamic cable that has no collision collection yet.
+3. Set the cables' **Pin Controls** to *Ends Only* so they have a free span.
 4. Go to frame 1 and play.
+
+A cable's own helper objects (`PINS_*`, `CLOTH_*`) are never turned into colliders, even though they are meshes
+sitting in the cable's collection and get picked up by a box select.
 
 The panel warns you in the two states where collision silently does nothing: no colliders assigned, or every
 control pinned.

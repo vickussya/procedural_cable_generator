@@ -1,3 +1,4 @@
+import contextlib
 import math
 import os
 import random
@@ -437,6 +438,47 @@ class PCG_OT_create_cables_from_out_mid_in(bpy.types.Operator):
         return {"FINISHED"}
 
 
+def selected_cables(context: bpy.types.Context) -> list[bpy.types.Object]:
+    """Cables the dynamics tools act on: the whole selection, plus the active object's cable.
+
+    A Tied Bundle or a set of coils is several cable curves, and they are all left selected
+    after generation, so acting on the active object alone would silently skip the rest.
+    """
+    objects = list(context.selected_objects or [])
+    active = context.active_object
+    if active is not None and active not in objects:
+        objects.append(active)
+    return dynamics.resolve_cables_for_objects(objects)
+
+
+def _describe(cables: list[bpy.types.Object]) -> str:
+    """Name a single cable, or count them, for operator reports."""
+    if len(cables) == 1:
+        return f"'{cables[0].name}'"
+    return f"{len(cables)} cables"
+
+
+@contextlib.contextmanager
+def _only_selected(context: bpy.types.Context, objects: list[bpy.types.Object]):
+    """Narrow the selection to `objects`, for Blender operators that act on selected=True."""
+    previous = list(context.selected_objects or [])
+    previous_active = context.active_object
+
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in objects:
+        obj.select_set(True)
+    if objects:
+        context.view_layer.objects.active = objects[0]
+
+    try:
+        yield
+    finally:
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in previous:
+            obj.select_set(True)
+        context.view_layer.objects.active = previous_active
+
+
 class PCG_OT_make_cable_dynamic(bpy.types.Operator):
     bl_idname = "pcg.make_cable_dynamic"
     bl_label = "Make Dynamic"
@@ -444,26 +486,38 @@ class PCG_OT_make_cable_dynamic(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        return (
-            context.mode == "OBJECT"
-            and cable is not None
-            and not dynamics.is_dynamics_enabled(cable)
-        )
+        if context.mode != "OBJECT":
+            return False
+        return any(not dynamics.is_dynamics_enabled(c) for c in selected_cables(context))
 
     def execute(self, context: bpy.types.Context):
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        if cable is None:
-            self.report({"ERROR"}, "No cable curve found for the active object")
+        cables = [c for c in selected_cables(context) if not dynamics.is_dynamics_enabled(c)]
+        if not cables:
+            self.report({"ERROR"}, "No cable curve without dynamics found in the selection")
             return {"CANCELLED"}
 
-        try:
-            dynamics.enable_dynamics(cable, cable.pcg_dynamics)
-        except dynamics.DynamicsError as exc:
-            self.report({"ERROR"}, str(exc))
+        enabled: list[bpy.types.Object] = []
+        failures: list[str] = []
+        for cable in cables:
+            try:
+                dynamics.enable_dynamics(cable, cable.pcg_dynamics)
+            except dynamics.DynamicsError as exc:
+                failures.append(f"{cable.name}: {exc}")
+            else:
+                enabled.append(cable)
+
+        if not enabled:
+            self.report({"ERROR"}, failures[0])
             return {"CANCELLED"}
 
-        self.report({"INFO"}, f"Dynamics enabled on '{cable.name}'")
+        if failures:
+            self.report(
+                {"WARNING"},
+                f"Dynamics enabled on {_describe(enabled)}; "
+                f"{len(failures)} skipped - {failures[0]}",
+            )
+        else:
+            self.report({"INFO"}, f"Dynamics enabled on {_describe(enabled)}")
         return {"FINISHED"}
 
 
@@ -474,35 +528,76 @@ class PCG_OT_remove_cable_dynamics(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        return context.mode == "OBJECT" and dynamics.is_dynamics_enabled(cable)
+        return context.mode == "OBJECT" and any(
+            dynamics.is_dynamics_enabled(c) for c in selected_cables(context)
+        )
 
     def execute(self, context: bpy.types.Context):
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        if cable is None:
-            self.report({"ERROR"}, "No cable curve found for the active object")
+        cables = [c for c in selected_cables(context) if dynamics.is_dynamics_enabled(c)]
+        if not cables:
+            self.report({"ERROR"}, "No cable with dynamics found in the selection")
             return {"CANCELLED"}
 
-        dynamics.disable_dynamics(cable)
-        self.report({"INFO"}, f"Dynamics removed from '{cable.name}'")
+        for cable in cables:
+            dynamics.disable_dynamics(cable)
+        self.report({"INFO"}, f"Dynamics removed from {_describe(cables)}")
+        return {"FINISHED"}
+
+
+class PCG_OT_copy_dynamics_settings(bpy.types.Operator):
+    bl_idname = "pcg.copy_dynamics_settings"
+    bl_label = "Copy Settings To Selected"
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: bpy.types.Context) -> bool:
+        if context.mode != "OBJECT":
+            return False
+        source = dynamics.resolve_cable_for_object(context.active_object)
+        if not dynamics.is_dynamics_enabled(source):
+            return False
+        return any(
+            c is not source and dynamics.is_dynamics_enabled(c) for c in selected_cables(context)
+        )
+
+    def execute(self, context: bpy.types.Context):
+        source = dynamics.resolve_cable_for_object(context.active_object)
+        if not dynamics.is_dynamics_enabled(source):
+            self.report({"ERROR"}, "The active object is not a cable with dynamics enabled")
+            return {"CANCELLED"}
+
+        targets = [
+            c
+            for c in selected_cables(context)
+            if c is not source and dynamics.is_dynamics_enabled(c)
+        ]
+        if not targets:
+            self.report({"ERROR"}, "Select the other cables to copy these settings onto")
+            return {"CANCELLED"}
+
+        for target in targets:
+            dynamics.copy_dynamics_settings(source.pcg_dynamics, target.pcg_dynamics)
+
+        self.report({"INFO"}, f"Copied '{source.name}' dynamics settings to {_describe(targets)}")
         return {"FINISHED"}
 
 
 class _CableDynamicsOperator(bpy.types.Operator):
-    """Shared polling for operators acting on the active cable's dynamics setup."""
+    """Shared polling for operators acting on the selected cables' dynamics setups."""
 
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        return context.mode == "OBJECT" and dynamics.is_dynamics_enabled(cable)
+        return context.mode == "OBJECT" and any(
+            dynamics.is_dynamics_enabled(c) for c in selected_cables(context)
+        )
 
-    def _cable(self, context: bpy.types.Context):
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        if cable is None:
-            self.report({"ERROR"}, "No cable curve found for the active object")
-        return cable
+    def _cables(self, context: bpy.types.Context) -> list[bpy.types.Object]:
+        cables = [c for c in selected_cables(context) if dynamics.is_dynamics_enabled(c)]
+        if not cables:
+            self.report({"ERROR"}, "No cable with dynamics found in the selection")
+        return cables
 
 
 class PCG_OT_enable_self_collision(_CableDynamicsOperator):
@@ -510,20 +605,38 @@ class PCG_OT_enable_self_collision(_CableDynamicsOperator):
     bl_label = "Enable Self Collision"
 
     def execute(self, context: bpy.types.Context):
-        cable = self._cable(context)
-        if cable is None:
-            return {"CANCELLED"}
-        try:
-            dynamics.enable_self_collision(cable)
-        except dynamics.DynamicsError as exc:
-            self.report({"ERROR"}, str(exc))
+        cables = self._cables(context)
+        if not cables:
             return {"CANCELLED"}
 
-        self.report(
-            {"WARNING"},
-            f"Self collision on '{cable.name}' uses the heavier legacy cloth solver; "
-            "expect slower playback",
+        enabled: list[bpy.types.Object] = []
+        failures: list[str] = []
+        for cable in cables:
+            # Already-on cables are skipped rather than failed, so one cable being set up
+            # does not block the rest of a selection.
+            if cable.pcg_dynamics.use_self_collision:
+                continue
+            try:
+                dynamics.enable_self_collision(cable)
+            except dynamics.DynamicsError as exc:
+                failures.append(f"{cable.name}: {exc}")
+            else:
+                enabled.append(cable)
+
+        if not enabled:
+            self.report(
+                {"ERROR"},
+                failures[0] if failures else "Self collision is already enabled on these cables",
+            )
+            return {"CANCELLED"}
+
+        message = (
+            f"Self collision on {_describe(enabled)} uses the heavier legacy cloth solver; "
+            "expect slower playback"
         )
+        if failures:
+            message += f" ({len(failures)} skipped - {failures[0]})"
+        self.report({"WARNING"}, message)
         return {"FINISHED"}
 
 
@@ -532,11 +645,18 @@ class PCG_OT_disable_self_collision(_CableDynamicsOperator):
     bl_label = "Disable Self Collision"
 
     def execute(self, context: bpy.types.Context):
-        cable = self._cable(context)
-        if cable is None:
+        cables = self._cables(context)
+        if not cables:
             return {"CANCELLED"}
-        dynamics.disable_self_collision(cable)
-        self.report({"INFO"}, f"Self collision removed from '{cable.name}'")
+
+        removed = [c for c in cables if c.pcg_dynamics.use_self_collision]
+        if not removed:
+            self.report({"ERROR"}, "No selected cable has self collision enabled")
+            return {"CANCELLED"}
+
+        for cable in removed:
+            dynamics.disable_self_collision(cable)
+        self.report({"INFO"}, f"Self collision removed from {_describe(removed)}")
         return {"FINISHED"}
 
 
@@ -545,28 +665,24 @@ class PCG_OT_bake_simulation(_CableDynamicsOperator):
     bl_label = "Bake Simulation"
 
     def execute(self, context: bpy.types.Context):
-        cable = self._cable(context)
-        if cable is None:
+        cables = self._cables(context)
+        if not cables:
             return {"CANCELLED"}
-        if cable.pcg_dynamics.tier == dynamics.TIER_BACKGROUND:
+
+        simulated = [c for c in cables if c.pcg_dynamics.tier != dynamics.TIER_BACKGROUND]
+        if not simulated:
             self.report({"ERROR"}, "Background cables have no simulation to bake")
             return {"CANCELLED"}
 
-        # The operator works on the selection, so make sure only this cable is baked.
-        previous = [obj for obj in context.selected_objects]
-        bpy.ops.object.select_all(action="DESELECT")
-        cable.select_set(True)
-        context.view_layer.objects.active = cable
-        try:
-            bpy.ops.object.simulation_nodes_cache_bake(selected=True)
-        except RuntimeError as exc:
-            self.report({"ERROR"}, f"Bake failed: {exc}")
-            return {"CANCELLED"}
-        finally:
-            for obj in previous:
-                obj.select_set(True)
+        # The operator works on the selection, so narrow it to the cables being baked.
+        with _only_selected(context, simulated):
+            try:
+                bpy.ops.object.simulation_nodes_cache_bake(selected=True)
+            except RuntimeError as exc:
+                self.report({"ERROR"}, f"Bake failed: {exc}")
+                return {"CANCELLED"}
 
-        self.report({"INFO"}, f"Baked simulation cache for '{cable.name}'")
+        self.report({"INFO"}, f"Baked simulation cache for {_describe(simulated)}")
         return {"FINISHED"}
 
 
@@ -575,24 +691,18 @@ class PCG_OT_delete_simulation_bake(_CableDynamicsOperator):
     bl_label = "Delete Bake"
 
     def execute(self, context: bpy.types.Context):
-        cable = self._cable(context)
-        if cable is None:
+        cables = self._cables(context)
+        if not cables:
             return {"CANCELLED"}
 
-        previous = [obj for obj in context.selected_objects]
-        bpy.ops.object.select_all(action="DESELECT")
-        cable.select_set(True)
-        context.view_layer.objects.active = cable
-        try:
-            bpy.ops.object.simulation_nodes_cache_delete(selected=True)
-        except RuntimeError as exc:
-            self.report({"ERROR"}, f"Could not delete bake: {exc}")
-            return {"CANCELLED"}
-        finally:
-            for obj in previous:
-                obj.select_set(True)
+        with _only_selected(context, cables):
+            try:
+                bpy.ops.object.simulation_nodes_cache_delete(selected=True)
+            except RuntimeError as exc:
+                self.report({"ERROR"}, f"Could not delete bake: {exc}")
+                return {"CANCELLED"}
 
-        self.report({"INFO"}, f"Deleted simulation cache for '{cable.name}'")
+        self.report({"INFO"}, f"Deleted simulation cache for {_describe(cables)}")
         return {"FINISHED"}
 
 
@@ -601,48 +711,55 @@ class PCG_OT_export_cable_alembic(_CableDynamicsOperator):
     bl_label = "Export Alembic (.abc)"
 
     def execute(self, context: bpy.types.Context):
-        cable = self._cable(context)
-        if cable is None:
+        cables = self._cables(context)
+        if not cables:
             return {"CANCELLED"}
 
-        directory, warning = dynamics.resolve_alembic_directory(cable.pcg_dynamics)
-        try:
-            os.makedirs(directory, exist_ok=True)
-        except OSError as exc:
-            self.report({"ERROR"}, f"Could not create export folder '{directory}': {exc}")
-            return {"CANCELLED"}
-
-        filepath = os.path.join(directory, f"{cable.name}.abc")
         scene = context.scene
+        exported: list[str] = []
+        warning = None
 
-        previous = [obj for obj in context.selected_objects]
-        bpy.ops.object.select_all(action="DESELECT")
-        cable.select_set(True)
-        context.view_layer.objects.active = cable
-        try:
-            bpy.ops.wm.alembic_export(
-                filepath=filepath,
-                selected=True,
-                start=scene.frame_start,
-                end=scene.frame_end,
-                # Run synchronously so the report reflects a finished file rather than a
-                # job that is still writing.
-                as_background_job=False,
-                evaluation_mode="RENDER",
-            )
-        except RuntimeError as exc:
-            self.report({"ERROR"}, f"Alembic export failed: {exc}")
-            return {"CANCELLED"}
-        finally:
-            for obj in previous:
-                obj.select_set(True)
+        # One file per cable, named after it: each cable carries its own export folder, and
+        # a per-cable file stays usable when only part of a bundle is re-exported.
+        for cable in cables:
+            directory, cable_warning = dynamics.resolve_alembic_directory(cable.pcg_dynamics)
+            warning = warning or cable_warning
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except OSError as exc:
+                self.report({"ERROR"}, f"Could not create export folder '{directory}': {exc}")
+                return {"CANCELLED"}
+
+            filepath = os.path.join(directory, f"{cable.name}.abc")
+            with _only_selected(context, [cable]):
+                try:
+                    bpy.ops.wm.alembic_export(
+                        filepath=filepath,
+                        selected=True,
+                        start=scene.frame_start,
+                        end=scene.frame_end,
+                        # Run synchronously so the report reflects a finished file rather
+                        # than a job that is still writing.
+                        as_background_job=False,
+                        evaluation_mode="RENDER",
+                    )
+                except RuntimeError as exc:
+                    self.report({"ERROR"}, f"Alembic export failed for '{cable.name}': {exc}")
+                    return {"CANCELLED"}
+            exported.append(filepath)
 
         if warning:
             self.report({"WARNING"}, warning)
+        elif len(exported) == 1:
+            self.report(
+                {"INFO"},
+                f"Exported frames {scene.frame_start}-{scene.frame_end} to {exported[0]}",
+            )
         else:
             self.report(
                 {"INFO"},
-                f"Exported frames {scene.frame_start}-{scene.frame_end} to {filepath}",
+                f"Exported frames {scene.frame_start}-{scene.frame_end} of {len(exported)} "
+                f"cables to {os.path.dirname(exported[0])}",
             )
         return {"FINISHED"}
 
@@ -652,26 +769,38 @@ class PCG_OT_bake_cable_to_mesh(_CableDynamicsOperator):
     bl_label = "Convert To Baked Mesh"
 
     def execute(self, context: bpy.types.Context):
-        cable = self._cable(context)
-        if cable is None:
+        cables = self._cables(context)
+        if not cables:
             return {"CANCELLED"}
 
         scene = context.scene
         original_frame = scene.frame_current
+        baked: list[bpy.types.Object] = []
+        frames = 0
         try:
-            baked_obj, frames = dynamics.bake_cable_to_mesh(
-                cable, scene.frame_start, scene.frame_end
-            )
+            for cable in cables:
+                baked_obj, frames = dynamics.bake_cable_to_mesh(
+                    cable, scene.frame_start, scene.frame_end
+                )
+                baked.append(baked_obj)
         except dynamics.DynamicsError as exc:
-            self.report({"ERROR"}, str(exc))
+            # Whatever baked before the failure is kept; report which cable stopped it.
+            self.report({"ERROR"}, f"{cables[len(baked)].name}: {exc}")
             return {"CANCELLED"}
         finally:
             scene.frame_set(original_frame)
 
-        self.report(
-            {"INFO"},
-            f"Baked {frames} frame(s) of '{cable.name}' into '{baked_obj.name}' (self-contained)",
-        )
+        if len(baked) == 1:
+            self.report(
+                {"INFO"},
+                f"Baked {frames} frame(s) of '{cables[0].name}' into '{baked[0].name}' "
+                "(self-contained)",
+            )
+        else:
+            self.report(
+                {"INFO"},
+                f"Baked {frames} frame(s) of {len(baked)} cables into self-contained meshes",
+            )
         return {"FINISHED"}
 
 
@@ -811,8 +940,12 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
         )
 
     def execute(self, context: bpy.types.Context):
-        cable = dynamics.resolve_cable_for_object(context.active_object)
-        meshes = [o for o in context.selected_objects if o.type == "MESH" and o is not cable]
+        cables = [c for c in selected_cables(context) if dynamics.is_dynamics_enabled(c)]
+        # A cable's pin anchor and cloth proxy are meshes sitting in the cable's own
+        # collection, so selecting a bundle picks them up too. Colliding a cable against its
+        # own simulation helpers would fight the solver, so they are never made colliders.
+        skip = set(cables) | dynamics.cable_helper_objects()
+        meshes = [o for o in context.selected_objects if o.type == "MESH" and o not in skip]
         if not meshes:
             self.report({"ERROR"}, "Select one or more mesh objects to use as colliders")
             return {"CANCELLED"}
@@ -833,9 +966,12 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
 
         summary = f"{len(meshes)} object(s) in '{collection.name}' ({added} newly set up as colliders)"
 
-        if cable is not None and dynamics.is_dynamics_enabled(cable):
-            cable.pcg_dynamics.collision_collection = collection
-            self.report({"INFO"}, f"{summary}; assigned to '{cable.name}'")
+        # Selecting the cables alongside the collider meshes assigns the collection to all
+        # of them at once, which is how a whole bundle gets its colliders in one click.
+        if cables:
+            for cable in cables:
+                cable.pcg_dynamics.collision_collection = collection
+            self.report({"INFO"}, f"{summary}; assigned to {_describe(cables)}")
             return {"FINISHED"}
 
         # Setting up colliders means the collider meshes are selected, not a cable, so

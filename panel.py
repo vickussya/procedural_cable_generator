@@ -17,8 +17,10 @@ from .operators import (
     PCG_OT_disable_self_collision,
     PCG_OT_enable_self_collision,
     PCG_OT_export_cable_alembic,
+    PCG_OT_copy_dynamics_settings,
     PCG_OT_make_cable_dynamic,
     PCG_OT_remove_cable_dynamics,
+    selected_cables,
 )
 from .utils import is_cable_curve_object
 
@@ -106,6 +108,7 @@ class PCG_PT_cable_panel(bpy.types.Panel):
 
         active = context.active_object
         cable = dynamics.resolve_cable_for_object(active)
+        cables = selected_cables(context)
         if cable is not None:
             layout.separator()
             box = layout.box()
@@ -114,6 +117,11 @@ class PCG_PT_cable_panel(bpy.types.Panel):
             if cable is not active:
                 # Active object is one of this cable's controls, so name the cable it drives.
                 box.label(text=f"Cable: {cable.name}", icon="OUTLINER_OB_CURVE")
+
+            # The buttons below act on every selected cable, so say how many that is - a
+            # Tied Bundle leaves several selected and all of them are affected.
+            if len(cables) > 1:
+                box.label(text=f"{len(cables)} cables selected.", icon="OUTLINER_OB_CURVE")
 
             if dynamics.is_dynamics_enabled(cable):
                 dyn = cable.pcg_dynamics
@@ -203,6 +211,20 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                         warn.label(text="Unsaved .blend: exports go to", icon="ERROR")
                         warn.label(text="a temp folder. Save first.")
 
+                # Settings live per cable, so pushing the active one's onto the rest of the
+                # selection is how a bundle gets tuned as a unit.
+                if len(cables) > 1:
+                    box.operator(PCG_OT_copy_dynamics_settings.bl_idname, icon="DUPLICATE")
+
+                # A partially set-up selection (some cables added later, say) can be
+                # completed without deselecting the ones already dynamic.
+                if any(not dynamics.is_dynamics_enabled(c) for c in cables):
+                    box.operator(
+                        PCG_OT_make_cable_dynamic.bl_idname,
+                        text="Make Remaining Dynamic",
+                        icon="PHYSICS",
+                    )
+
                 box.operator(PCG_OT_remove_cable_dynamics.bl_idname, icon="X")
             else:
                 box.label(text="Uses Blender 5.2's experimental node-based cloth solver.")
@@ -224,3 +246,4 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         collider_box.label(text="Collision Setup:", icon="MOD_PHYSICS")
         collider_box.operator(PCG_OT_add_selected_colliders.bl_idname, icon="MOD_PHYSICS")
         collider_box.label(text="Select character/prop meshes, then click.")
+        collider_box.label(text="Select cables too to assign them.")
