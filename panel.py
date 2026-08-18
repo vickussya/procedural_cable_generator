@@ -39,10 +39,15 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         col = layout.column(align=True)
         col.label(text="Cable Settings:")
         col.prop(settings, "cable_name")
-        # Label on its own row: "Cable Preset" is truncated when drawn inline in a narrow
-        # sidebar, and the preset is the first thing to reach for.
-        col.label(text="Cable Preset:")
-        col.prop(settings, "cable_preset", text="")
+
+        # Drawn as buttons rather than a dropdown. Collapsed, the field only reads "Custom"
+        # and every look on offer stays hidden until it is clicked, which reads as the add-on
+        # having no presets at all.
+        preset_box = layout.box()
+        preset_box.label(text="Cable Preset:", icon="PRESET")
+        preset_box.prop(settings, "cable_preset", expand=True)
+
+        col = layout.column(align=True)
         col.prop(settings, "slack")
         col.prop(settings, "slack_relative")
         col.prop(settings, "thickness")
@@ -72,8 +77,8 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         box = layout.box()
         box.label(text="Coil / Roll:")
         col = box.column(align=True)
-        col.label(text="Coil Preset:")
-        col.prop(settings, "coil_preset", text="")
+        col.label(text="Coil Preset:", icon="PRESET")
+        col.prop(settings, "coil_preset", expand=True)
         box.prop(settings, "coil_seed")
         box.operator(PCG_OT_create_coiled_cable.bl_idname, icon="CURVE_NCIRCLE")
 
@@ -151,8 +156,8 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                     col.prop(dyn, "sway_resample")
                 else:
                     col = box.column(align=True)
-                    col.label(text="Preset:")
-                    col.prop(dyn, "preset", text="")
+                    col.label(text="Preset:", icon="PRESET")
+                    col.prop(dyn, "preset", expand=True)
 
                     col = box.column(align=True)
                     col.label(text="Appearance:")

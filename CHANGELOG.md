@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proxy. They are now excluded from the collider set.
 - Resolving cables from a selection of control empties scans each cable's collection once rather than once per
   selected empty, since this runs from `poll()` on every panel redraw.
+- **Presets were invisible until clicked.** All three preset lists (cable, coil and dynamics) were drawn as
+  collapsed dropdowns, so with nothing chosen the field only read "Custom" and every look on offer stayed hidden
+  behind a click — which reads as the add-on having no presets at all. They are now drawn expanded, as a list of
+  buttons showing every option with the current one highlighted.
 - **Dynamics settings only reached one cable.** Dynamics settings are stored on the cable object, so a slider only
   ever wrote to the active one — with a bundle set up, every value had to be dialled in once per cable. Editing any
   dynamics setting now applies to **all selected cables**, including presets and the tier, controlled by the new
@@ -34,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   individual writes are skipped in favour of mirroring the preset itself once.
 
 ### Added
-- **Cable look presets.** A **Cable Preset** dropdown at the top of the panel sets sag, middle controls, thickness
+- **Cable look presets.** A **Cable Preset** list at the top of the panel sets sag, middle controls, thickness
   and the bundle settings together, so a run between two objects lands on a recognisable look in one click:
   *Power Line*, *Street Wires*, *Sagging Drop*, *Cable Loom* and *Taut Run*. Editing any of those settings switches
   the preset to *Custom*, matching how the coil presets already behave. It defaults to *Custom*, so existing

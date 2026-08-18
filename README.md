@@ -81,8 +81,9 @@ All modes share **Cable Settings** at the top of the panel: *Cable Name*, *Cable
 
 ### Cable presets
 
-Pick a **Cable Preset** and the sag, control count, thickness and bundle settings are set together, so a run
-between two objects lands on a recognisable look without dialling anything:
+Pick a **Cable Preset** — they are listed as buttons at the top of the panel — and the sag, control count,
+thickness and bundle settings are set together, so a run between two objects lands on a recognisable look without
+dialling anything:
 
 | Preset | Look |
 |---|---|
