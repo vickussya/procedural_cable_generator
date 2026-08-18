@@ -34,6 +34,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   individual writes are skipped in favour of mirroring the preset itself once.
 
 ### Added
+- **Cable look presets.** A **Cable Preset** dropdown at the top of the panel sets sag, middle controls, thickness
+  and the bundle settings together, so a run between two objects lands on a recognisable look in one click:
+  *Power Line*, *Street Wires*, *Sagging Drop*, *Cable Loom* and *Taut Run*. Editing any of those settings switches
+  the preset to *Custom*, matching how the coil presets already behave. It defaults to *Custom*, so existing
+  defaults are unchanged until a preset is picked.
+- **Span Sag**, a new setting carrying sag as a fraction of the distance the cable spans, added on top of the
+  existing absolute *Slack*. Cable droops in proportion to how far it has to reach, so a fixed metre value only
+  looks right at one span length — a preset meaning "power line" is unusable without this. It applies to the
+  2-object, free cable and tied bundle modes, and defaults to 0 so nothing changes until it is set.
+  `utils.sag_amount()` is a plain function on numbers, testable without Blender per the project's convention.
+  Each preset keeps *Middle Controls* odd, so a control lands on the middle of the span where the sag envelope
+  peaks; an even count straddles the middle and comes up about 5% short of the depth asked for.
 - **Copy Settings To Selected** (`pcg.copy_dynamics_settings`) pushes the active cable's dynamics settings onto the
   other selected cables, so a bundle can be tuned as a unit — the settings are per cable, so editing a slider only
   ever affected the active one. The helper object pointers and self collision are deliberately not copied: those

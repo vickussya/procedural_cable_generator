@@ -82,11 +82,145 @@ def _coil_value_edited(settings, context) -> None:
             _suspend_coil_preset = False
 
 
+# Ready-made looks for cables run between objects, covering the single-cable and bundle
+# modes together since a look is as much "how many wires and how far apart" as it is sag.
+# Sag is carried as a fraction of the span (see utils.sag_amount): a fixed distance only
+# looks right at one span length, and these are meant to hold up across a 4m alley and a
+# 30m street alike.
+#
+# Middle Controls is kept odd throughout, so one control lands on the middle of the span
+# where the sin() sag envelope peaks and the cable actually reaches the depth asked for. An
+# even count straddles the middle and comes up about 5% short.
+_CABLE_PRESETS = {
+    "POWER_LINE": {
+        "slack": 0.0,
+        "slack_relative": -0.08,
+        "middle_controls": 3,
+        "thickness": 0.02,
+        "bevel_resolution": 3,
+        "bundle_count": 4,
+        "bundle_spread": 0.45,
+        "bundle_variation": 0.08,
+    },
+    "STREET_WIRES": {
+        "slack": 0.0,
+        "slack_relative": -0.14,
+        "middle_controls": 5,
+        "thickness": 0.01,
+        "bevel_resolution": 2,
+        "bundle_count": 7,
+        "bundle_spread": 0.22,
+        "bundle_variation": 0.55,
+    },
+    "SAGGING_DROP": {
+        "slack": 0.0,
+        "slack_relative": -0.28,
+        "middle_controls": 5,
+        "thickness": 0.012,
+        "bevel_resolution": 3,
+        "bundle_count": 3,
+        "bundle_spread": 0.06,
+        "bundle_variation": 0.45,
+    },
+    "CABLE_LOOM": {
+        "slack": 0.0,
+        "slack_relative": -0.04,
+        "middle_controls": 3,
+        "thickness": 0.006,
+        "bevel_resolution": 3,
+        "bundle_count": 6,
+        "bundle_spread": 0.07,
+        "bundle_variation": 0.35,
+    },
+    "TAUT_RUN": {
+        "slack": 0.0,
+        "slack_relative": -0.008,
+        "middle_controls": 1,
+        "thickness": 0.015,
+        "bevel_resolution": 3,
+        "bundle_count": 3,
+        "bundle_spread": 0.03,
+        "bundle_variation": 0.05,
+    },
+}
+
+_suspend_cable_preset = False
+
+
+def _apply_cable_preset(settings, context) -> None:
+    global _suspend_cable_preset
+    if _suspend_cable_preset:
+        return
+    values = _CABLE_PRESETS.get(settings.cable_preset)
+    if values is None:  # "CUSTOM" keeps whatever is set
+        return
+
+    _suspend_cable_preset = True
+    try:
+        for name, value in values.items():
+            setattr(settings, name, value)
+    finally:
+        _suspend_cable_preset = False
+
+
+def _cable_value_edited(settings, context) -> None:
+    """Hand-editing any of a preset's settings means the look is no longer that preset."""
+    global _suspend_cable_preset
+    if not _suspend_cable_preset and settings.cable_preset != "CUSTOM":
+        _suspend_cable_preset = True
+        try:
+            settings.cable_preset = "CUSTOM"
+        finally:
+            _suspend_cable_preset = False
+
+
 class PCG_Settings(bpy.types.PropertyGroup):
     cable_name: StringProperty(
         name="Cable Name",
         default="Cable",
         description="Name for the generated cable setup",
+    )
+
+    cable_preset: EnumProperty(
+        name="Cable Preset",
+        items=(
+            (
+                "POWER_LINE",
+                "Power Line",
+                "Overhead conductors strung between poles: heavy, evenly spread, with the "
+                "shallow even droop of a tensioned line",
+            ),
+            (
+                "STREET_WIRES",
+                "Street Wires",
+                "The untidy tangle of thin wires strung across a street or alley: many "
+                "cables, deeper sag, and no two alike",
+            ),
+            (
+                "SAGGING_DROP",
+                "Sagging Drop",
+                "A few slack cables hanging in a deep loop, as if left with far more length "
+                "than the gap needs",
+            ),
+            (
+                "CABLE_LOOM",
+                "Cable Loom",
+                "A tied harness of thin cables running close together with only slight sag",
+            ),
+            (
+                "TAUT_RUN",
+                "Taut Run",
+                "A pulled-tight run with almost no droop, for guy wires and tensioned cable",
+            ),
+            ("CUSTOM", "Custom", "Settings edited by hand"),
+        ),
+        default="CUSTOM",
+        description=(
+            "Ready-made looks for cables run between objects. Sets sag, control count, "
+            "thickness and the bundle settings together - editing any of them switches to "
+            "Custom"
+        ),
+        update=_apply_cable_preset,
     )
 
     thickness: FloatProperty(
@@ -97,6 +231,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Curve bevel depth",
         subtype="DISTANCE",
         unit="LENGTH",
+        update=_cable_value_edited,
     )
 
     bevel_resolution: IntProperty(
@@ -105,6 +240,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         min=0,
         max=12,
         description="Curve bevel resolution",
+        update=_cable_value_edited,
     )
 
     middle_controls: IntProperty(
@@ -113,6 +249,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         min=0,
         max=20,
         description="Number of middle control empties between start and end",
+        update=_cable_value_edited,
     )
 
     chain_order: EnumProperty(
@@ -140,6 +277,20 @@ class PCG_Settings(bpy.types.PropertyGroup):
         description="Offsets the middle controls along an up-ish direction (use negative for sag)",
         subtype="DISTANCE",
         unit="LENGTH",
+        update=_cable_value_edited,
+    )
+
+    slack_relative: FloatProperty(
+        name="Span Sag",
+        default=0.0,
+        soft_min=-0.6,
+        soft_max=0.6,
+        description=(
+            "Extra sag as a fraction of the distance the cable spans, added to Slack. "
+            "Negative sags downward. Being relative, one value keeps the same look on a "
+            "short run and a long one, which is what the cable presets use"
+        ),
+        update=_cable_value_edited,
     )
 
     empty_size: FloatProperty(
@@ -305,6 +456,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         min=2,
         max=32,
         description="How many cables to generate in the bundle",
+        update=_cable_value_edited,
     )
 
     bundle_spread: FloatProperty(
@@ -318,6 +470,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         ),
         subtype="DISTANCE",
         unit="LENGTH",
+        update=_cable_value_edited,
     )
 
     bundle_variation: FloatProperty(
@@ -326,6 +479,7 @@ class PCG_Settings(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         description="Randomises each cable's spread and sag so they do not look cloned",
+        update=_cable_value_edited,
     )
 
     bundle_seed: IntProperty(

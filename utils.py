@@ -75,6 +75,17 @@ def offset_dir_for_slack(start: Vector, end: Vector) -> Vector:
     return perp.normalized()
 
 
+def sag_amount(*, slack: float, slack_relative: float, span: float) -> float:
+    """How far a cable's middle is offset from the straight line between its ends.
+
+    `slack` is a fixed distance and `slack_relative` a fraction of the span, added together.
+    Cable droops in proportion to how far it has to reach, so a named look - "power line",
+    say - only holds across a 4m gap and a 30m one when it is expressed relative to the
+    span. Negative values sag downward, matching the Slack setting's sign.
+    """
+    return slack + slack_relative * span
+
+
 def helix_positions(
     *,
     origin: Vector,

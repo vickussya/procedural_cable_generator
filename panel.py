@@ -39,7 +39,12 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         col = layout.column(align=True)
         col.label(text="Cable Settings:")
         col.prop(settings, "cable_name")
+        # Label on its own row: "Cable Preset" is truncated when drawn inline in a narrow
+        # sidebar, and the preset is the first thing to reach for.
+        col.label(text="Cable Preset:")
+        col.prop(settings, "cable_preset", text="")
         col.prop(settings, "slack")
+        col.prop(settings, "slack_relative")
         col.prop(settings, "thickness")
         col.prop(settings, "bevel_resolution")
         col.prop(settings, "empty_size")
@@ -90,7 +95,8 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         box.prop(settings, "bundle_spread")
         box.prop(settings, "bundle_variation")
         box.prop(settings, "bundle_seed")
-        box.label(text="Uses Middle Controls + Slack above.")
+        box.label(text="Uses Middle Controls, Slack and")
+        box.label(text="Span Sag above.")
         box.operator(PCG_OT_create_cable_bundle.bl_idname, icon="CURVE_BEZCURVE")
 
         layout.separator()

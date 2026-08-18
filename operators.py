@@ -18,6 +18,7 @@ from .utils import (
     ordered_selected_pair,
     parent_keep_world,
     perpendicular_basis,
+    sag_amount,
     unique_name,
 )
 
@@ -124,12 +125,17 @@ class PCG_OT_create_cable_from_selection(bpy.types.Operator):
         cable_coll.objects.link(end_empty)
 
         offset_dir = offset_dir_for_slack(start_pos, end_pos)
+        sag = sag_amount(
+            slack=settings.slack,
+            slack_relative=settings.slack_relative,
+            span=(end_pos - start_pos).length,
+        )
         controls: list[bpy.types.Object] = [start_empty]
 
         for i in range(settings.middle_controls):
             t = (i + 1) / (settings.middle_controls + 1)
             base = start_pos.lerp(end_pos, t)
-            offset = offset_dir * (settings.slack * math.sin(math.pi * t))
+            offset = offset_dir * (sag * math.sin(math.pi * t))
             mid_pos = base + offset
             mid_name = unique_name(
                 f"CTRL_{settings.cable_name}_MID_{i + 1:02d}",
@@ -221,12 +227,17 @@ class PCG_OT_create_free_cable(bpy.types.Operator):
         start_pos = context.scene.cursor.location.copy()
         end_pos = start_pos + Vector((settings.free_length, 0.0, 0.0))
         offset_dir = offset_dir_for_slack(start_pos, end_pos)
+        sag = sag_amount(
+            slack=settings.slack,
+            slack_relative=settings.slack_relative,
+            span=settings.free_length,
+        )
 
         positions: list[Vector] = []
         for i in range(total_controls):
             t = 0.0 if total_controls == 1 else i / (total_controls - 1)
             base = start_pos.lerp(end_pos, t)
-            offset = offset_dir * (settings.slack * math.sin(math.pi * t))
+            offset = offset_dir * (sag * math.sin(math.pi * t))
             positions.append(base + offset)
 
         controls = _create_controls_for_positions(
@@ -328,6 +339,11 @@ class PCG_OT_create_cable_bundle(bpy.types.Operator):
         end_pos = end_obj.matrix_world.translation.copy()
         basis_a, basis_b = perpendicular_basis(start_pos, end_pos)
         slack_dir = offset_dir_for_slack(start_pos, end_pos)
+        base_sag = sag_amount(
+            slack=settings.slack,
+            slack_relative=settings.slack_relative,
+            span=(end_pos - start_pos).length,
+        )
         middle_controls = max(1, settings.middle_controls)
 
         root = ensure_root_collection(context.scene)
@@ -345,7 +361,7 @@ class PCG_OT_create_cable_bundle(bpy.types.Operator):
                 seed=settings.bundle_seed,
             )
             # Vary each cable's sag a little so the bundle does not look cloned.
-            sag = settings.slack * (1.0 + generator.uniform(-settings.bundle_variation, settings.bundle_variation))
+            sag = base_sag * (1.0 + generator.uniform(-settings.bundle_variation, settings.bundle_variation))
 
             base_name = f"{settings.cable_name}_{cable_index + 1:02d}"
             cable_coll = new_child_collection(root, f"Cable_{base_name}")

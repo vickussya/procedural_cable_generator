@@ -76,8 +76,36 @@ Two consequences worth knowing:
 
 ## Creating cables
 
-All modes share **Cable Settings** at the top of the panel: *Cable Name*, *Slack* (negative sags), *Thickness*,
-*Bevel Resolution* and *Control Size*.
+All modes share **Cable Settings** at the top of the panel: *Cable Name*, *Cable Preset*, *Slack* (negative sags),
+*Span Sag*, *Thickness*, *Bevel Resolution* and *Control Size*.
+
+### Cable presets
+
+Pick a **Cable Preset** and the sag, control count, thickness and bundle settings are set together, so a run
+between two objects lands on a recognisable look without dialling anything:
+
+| Preset | Look |
+|---|---|
+| **Power Line** | Overhead conductors between poles — heavy, evenly spread, shallow even droop |
+| **Street Wires** | The untidy tangle strung across a street: many thin wires, deeper sag, no two alike |
+| **Sagging Drop** | A few slack cables hanging in a deep loop, as if left far too long for the gap |
+| **Cable Loom** | A tied harness of thin cables running close together with only slight sag |
+| **Taut Run** | A pulled-tight run with almost no droop — guy wires, tensioned cable |
+
+They apply to **From 2 Objects** and **Tied Bundle** alike: the same preset gives one cable or a whole run of
+them depending on which button you press. Editing any setting a preset controls switches it to *Custom*.
+
+### Two kinds of sag
+
+- **Slack** — a fixed distance in metres.
+- **Span Sag** — a fraction of the distance the cable spans, added on top.
+
+Cable droops in proportion to how far it has to reach, so a fixed value that looks right across a 4m alley
+disappears across a 30m street. *Span Sag* is what the presets use, which is why they hold their look at any
+distance. Both default to 0 (a straight cable); negative values sag downward.
+
+Sag peaks at the middle of the span, so keep **Middle Controls** odd if you want the cable to actually reach the
+depth you asked for — an even count straddles the middle and falls about 5% short.
 
 ### 1) From 2 Objects
 
@@ -133,8 +161,9 @@ unreliable. It's a normal cable afterwards, so it can be reshaped and made dynam
 Several cables running together and cinched at both ends — a loom or zip-tied run.
 
 1. Select exactly **two** objects (active is the start).
-2. Set **Cables**, **Spread** (how far they separate mid-run) and **Variation** (how much they differ). **Seed**
-   reshuffles. It also uses **Middle Controls** and **Slack** from the top of the panel.
+2. Pick a **Cable Preset** — *Street Wires* and *Power Line* are built for this mode — or set **Cables**,
+   **Spread** (how far they separate mid-run) and **Variation** (how much they differ) by hand. **Seed**
+   reshuffles. It also uses **Middle Controls**, **Slack** and **Span Sag** from the top of the panel.
 3. Click **Create Tied Bundle From 2 Objects**.
 
 The cables meet exactly at the two objects and fan out between them — that convergence is what reads as "tied".
