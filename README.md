@@ -1,3 +1,4 @@
+<img width="1153" height="660" alt="image" src="https://github.com/user-attachments/assets/dd30f119-b92c-4447-b6fe-18172ca047c1" />
 # Procedural Cable Generator (Blender Add-on)
 
 Creates cables as Bezier curves driven by control empties, and can optionally simulate them so they sag, drape over
