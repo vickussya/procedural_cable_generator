@@ -36,6 +36,13 @@ def is_cable_curve_object(obj: bpy.types.Object | None) -> bool:
     return spline.type == "BEZIER" and len(spline.bezier_points) >= 2
 
 
+def is_pose_bone_selected(pose_bone: bpy.types.PoseBone) -> bool:
+    # Bone selection moved from Bone.select to PoseBone.select in Blender 5.0.
+    if hasattr(pose_bone, "select"):
+        return pose_bone.select
+    return pose_bone.bone.select
+
+
 def unique_name(base: str, existing: set[str]) -> str:
     if base not in existing:
         return base

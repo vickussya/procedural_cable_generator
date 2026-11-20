@@ -147,11 +147,17 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                 # Active object is one of this cable's controls, so name the cable it drives.
                 box.label(text=f"Cable: {cable.name}", icon="OUTLINER_OB_CURVE")
 
+            supported = dynamics.dynamics_supported()
+            if not supported:
+                box.label(text="Needs Blender 5.2 or newer.", icon="INFO")
+                if dynamics.is_dynamics_enabled(cable):
+                    box.operator(PCG_OT_remove_cable_dynamics.bl_idname, icon="X")
+
             # The buttons below act on every selected cable, so say how many that is - a
             # Tied Bundle leaves several selected and all of them are affected. The settings
             # themselves are stored per cable, hence the toggle: on, editing any of them
             # below edits all of the selected cables at once.
-            if len(cables) > 1:
+            elif len(cables) > 1:
                 box.label(text=f"{len(cables)} cables selected.", icon="OUTLINER_OB_CURVE")
                 box.prop(settings, "sync_selected_cables", toggle=True, icon="LINKED")
                 # Still offered with the toggle on, to re-align cables that were tuned
@@ -159,7 +165,7 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                 if dynamics.is_dynamics_enabled(cable):
                     box.operator(PCG_OT_copy_dynamics_settings.bl_idname, icon="DUPLICATE")
 
-            if dynamics.is_dynamics_enabled(cable):
+            if supported and dynamics.is_dynamics_enabled(cable):
                 dyn = cable.pcg_dynamics
                 col = box.column(align=True)
                 col.label(text="Tier:")
@@ -257,7 +263,7 @@ class PCG_PT_cable_panel(bpy.types.Panel):
                     )
 
                 box.operator(PCG_OT_remove_cable_dynamics.bl_idname, icon="X")
-            else:
+            elif supported:
                 box.label(text="Uses Blender 5.2's experimental node-based cloth solver.")
                 box.operator(PCG_OT_make_cable_dynamic.bl_idname, icon="PHYSICS")
 
@@ -275,6 +281,9 @@ class PCG_PT_cable_panel(bpy.types.Panel):
         layout.separator()
         collider_box = layout.box()
         collider_box.label(text="Collision Setup:", icon="MOD_PHYSICS")
+        if not dynamics.dynamics_supported():
+            collider_box.label(text="Needs Blender 5.2 or newer.", icon="INFO")
+            return
         collider_box.operator(PCG_OT_add_selected_colliders.bl_idname, icon="MOD_PHYSICS")
         collider_box.label(text="Select character/prop meshes, then click.")
         collider_box.label(text="Select cables too to assign them.")

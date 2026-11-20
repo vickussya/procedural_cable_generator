@@ -30,6 +30,7 @@ from .utils import (
     ensure_root_collection,
     helix_positions,
     is_cable_curve_object,
+    is_pose_bone_selected,
     make_empty,
     new_child_collection,
     offset_dir_for_slack,
@@ -512,7 +513,7 @@ class PCG_OT_make_cable_dynamic(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        if context.mode != "OBJECT":
+        if context.mode != "OBJECT" or not dynamics.dynamics_supported():
             return False
         return any(not dynamics.is_dynamics_enabled(c) for c in selected_cables(context))
 
@@ -844,7 +845,7 @@ def _resolve_target_bone(context: bpy.types.Context, armature: bpy.types.Object)
     if active_bone is not None:
         return active_bone.name
 
-    selected = [pose_bone.name for pose_bone in armature.pose.bones if pose_bone.select]
+    selected = [pose_bone.name for pose_bone in armature.pose.bones if is_pose_bone_selected(pose_bone)]
     if len(selected) == 1:
         return selected[0]
     return None
@@ -961,8 +962,10 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: bpy.types.Context) -> bool:
-        return context.mode == "OBJECT" and any(
-            o.type == "MESH" for o in (context.selected_objects or [])
+        return (
+            context.mode == "OBJECT"
+            and dynamics.dynamics_supported()
+            and any(o.type == "MESH" for o in (context.selected_objects or []))
         )
 
     def execute(self, context: bpy.types.Context):
@@ -977,6 +980,8 @@ class PCG_OT_add_selected_colliders(bpy.types.Operator):
             return {"CANCELLED"}
 
         try:
+            # Load the collider asset first, so a failure leaves no empty collection behind.
+            dynamics.get_or_create_collider_group()
             collection = dynamics.ensure_collider_collection(context.scene)
             added = 0
             for obj in meshes:

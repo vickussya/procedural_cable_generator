@@ -8,8 +8,12 @@ Instructions for AI agents (and human contributors) working in this repository. 
 control empties (`CTRL_*`). Moving a control empty updates the cable shape live via drivers — no modifier stack or
 simulation is involved. It started as a workflow script for automating cable layout/dressing in environment scenes.
 
-- Target: **Blender 5.2 LTS only** (`bl_info["blender"] = (5, 2, 0)`). No backward compatibility with earlier
-  Blender versions is required — upcoming dynamics work depends on 5.2's node-based physics.
+- Target: **Blender 4.2 LTS or newer for the core add-on, 5.2 LTS or newer for Dynamics**
+  (`bl_info["blender"] = (4, 2, 0)`). Dynamics depends on 5.2's bundled node-cloth assets and the
+  `NodesModifier.properties.inputs` API, so it is gated by `dynamics.dynamics_supported()`: on older versions its
+  operators fail `poll()` and the panel shows "Needs Blender 5.2 or newer." instead. Everything outside Dynamics
+  must keep working on 4.2; guard any newer API with a version check or `hasattr` (see
+  `utils.is_pose_bone_selected` for the pattern).
 - License: **GPL-3.0** (see `LICENSE`).
 - Current version per `bl_info`: **1.0.0**.
 
@@ -26,11 +30,14 @@ package and contains `__init__.py` directly.
 | `panel.py` | `PCG_PT_cable_panel`, the single 3D Viewport sidebar (N-panel) UI under `View3D > Sidebar > Cable`. |
 | `utils.py` | Shared helpers: collection management, unique naming, empty creation, parenting (objects and armature bones), driver wiring, and curve construction. No Blender operator/UI classes live here. |
 | `dynamics.py` | The Dynamics feature: builds the Geometry Nodes trees, the pin anchor and cloth proxy objects, collider setup, and the bake helpers. No operator/UI classes here either. |
+| `tests/smoke_test.py` | Headless smoke test, run inside Blender (see *How to install & test*). Not part of the add-on. |
 | `README.md` | User-facing install and usage instructions. |
 | `LICENSE` | GPL-3.0 license text. |
 | `.gitignore` | Standard Blender/Python/VS Code ignores. |
 
-There is no test suite, no build tooling, and no external dependencies beyond `bpy`/`mathutils` (Blender's bundled API).
+There is a headless smoke test (`tests/smoke_test.py`), no build tooling, and no external dependencies beyond
+`bpy`/`mathutils` (Blender's bundled API). Every `.py` file starts with the GPL-3.0-or-later license header; keep
+it on new files.
 
 ## Architecture & conventions
 
@@ -110,8 +117,14 @@ There is no test suite, no build tooling, and no external dependencies beyond `b
    - Also verify `unregister()`/`register()` round-trips cleanly (disable/re-enable the add-on) with no errors in
      the Blender console.
 
-**Testing strategy convention:** there is no automated test suite today, and manual in-Blender smoke testing (above)
-remains the only requirement for now. However, new non-trivial logic (especially cable/dynamics math: sag, easing,
+**Automated smoke test:** run `blender -b --factory-startup --python tests/smoke_test.py` on both the oldest
+supported version (4.2 LTS) and 5.2 LTS. It stages the add-on into a temporary script directory (the user's add-ons
+folder is never touched), creates a cable with each mode, checks updates, Dynamics setup/cleanup (5.2) or the
+Dynamics gate (older), draws the panel against a stub layout, and disables the add-on. It exits non-zero on any
+failure. Pass `-- --use-installed` to test an already-installed copy instead. It does not replace a manual check
+of the UI, which it cannot render.
+
+**Testing strategy convention:** manual in-Blender smoke testing (above) is still expected for UI changes. However, new non-trivial logic (especially cable/dynamics math: sag, easing,
 constraint solving, etc.) should be written as plain functions operating on `mathutils.Vector`/numbers rather than
 reaching into `bpy.data`/`bpy.context` directly, and kept separate from the `bpy.types.Operator`/`Panel` glue code
 that calls them (following the existing `utils.py` split). This costs nothing today but means headless unit tests
@@ -147,7 +160,7 @@ A change is done when:
 
 ## Open questions
 
-- None currently. Prior questions were resolved 2026-08-14: `bl_info["blender"]` is pinned to `(5, 2, 0)` with no
-  back-compat requirement; automated testing stays manual for now, with the "Testing strategy convention" above as
-  the guardrail for future dynamics code; the `CHANGELOG.md` baseline entry is explicitly labeled as a retroactive
-  pre-dynamics snapshot rather than a real tagged release.
+- None currently. On 2026-11-20 the minimum was lowered to 4.2 LTS for the core add-on, with Dynamics gated to
+  5.2+ (replacing the 2026-08-14 decision to pin `(5, 2, 0)`), and the headless smoke test was added. Resolved
+  2026-08-14: the "Testing strategy convention" above is the guardrail for future dynamics code; the `CHANGELOG.md`
+  baseline entry is explicitly labeled as a retroactive pre-dynamics snapshot rather than a real tagged release.

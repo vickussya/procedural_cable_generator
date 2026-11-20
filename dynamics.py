@@ -68,6 +68,15 @@ COLLIDER_GROUP_VERSION = 2
 COLLIDER_VERSION_KEY = "pcg_collider_version"
 
 
+# Dynamics needs two things that first ship in 5.2: the bundled node-cloth assets and the
+# NodesModifier.properties.inputs API. Cable creation itself works on older versions.
+DYNAMICS_MIN_BLENDER = (5, 2, 0)
+
+
+def dynamics_supported() -> bool:
+    return bpy.app.version >= DYNAMICS_MIN_BLENDER
+
+
 class DynamicsError(Exception):
     """Raised for recoverable dynamics setup failures; callers turn this into self.report()."""
 
@@ -170,12 +179,14 @@ def make_collider(
     if obj.type != "MESH":
         return False
 
+    # Build the group before touching the mesh, so a failed asset load adds nothing to it.
+    collider_group = get_or_create_collider_group()
     mod = obj.modifiers.get(COLLIDER_MODIFIER_NAME)
     newly_added = mod is None
     if newly_added:
         mod = obj.modifiers.new(COLLIDER_MODIFIER_NAME, type="NODES")
 
-    mod.node_group = get_or_create_collider_group()
+    mod.node_group = collider_group
     _set_modifier_input(mod, "Deforming", deforming)
     _set_modifier_input(mod, "Friction", friction)
     _set_modifier_input(mod, "Margin", margin)
