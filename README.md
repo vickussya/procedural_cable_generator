@@ -1,5 +1,43 @@
-<img width="1153" height="660" alt="image" src="https://github.com/user-attachments/assets/dd30f119-b92c-4447-b6fe-18172ca047c1" />
 # Procedural Cable Generator (Blender Add-on)
+
+**Editable cables in one click: Bezier curves you shape by dragging control empties, with optional physics.**
+
+![Cable from two objects](docs/media/hero.gif)
+
+### Quick start
+
+1. Download **`procedural_cable_generator-1.1.0.zip`** from [Releases][releases], then in Blender go to
+   `Edit > Preferences > Add-ons > ⌄ > Install from Disk…`, pick the ZIP, and enable it.
+2. In the 3D Viewport press **N** and open the **Cable** tab.
+3. Select **two objects**. The one you click last is where the cable starts.
+4. Pick a **Cable Preset** (or set **Span Sag**, negative droops), then click **Create Cable From 2 Selected Objects**.
+5. Drag the **`CTRL_*` empties** to reshape it. To change the sag itself, press `Ctrl+Z`, adjust, and click again.
+
+**Blender 4.2 LTS or newer** (tested on 4.2, 4.5 and 5.2). Dynamics needs **Blender 5.2 LTS**.
+· [Releases][releases] · [Full documentation](#full-documentation) · [Report an issue][issues]
+
+> **Dynamics is Experimental.** Creating and shaping cables (all five modes, presets, attaching to bones) is
+> stable; Dynamics (simulation, collision, baking) builds on Blender 5.2's own *experimental* cloth node, so its
+> behaviour may change between Blender releases.
+
+**Made for a real film:** built for, and used in, my short animated film ***Oops***, for the cables in its lab scene.
+
+[releases]: https://github.com/vickussya/procedural_cable_generator/releases
+[issues]: https://github.com/vickussya/procedural_cable_generator/issues
+
+---
+
+## Full documentation
+
+- [Background](#background)
+- [Install](#install)
+- [How it works](#how-it-works)
+- [Creating cables](#creating-cables): presets, the five creation modes, editing afterwards
+- [Dynamics (Experimental)](#dynamics-experimental): tiers, pinning, collision, bones, baking, self collision
+- [Gotchas](#gotchas)
+- [Repo layout](#repo-layout) · [License](#license)
+
+<img width="1153" height="660" alt="Cables made with the add-on: a cable drum, coils, a tangle and two hanging cables" src="https://github.com/user-attachments/assets/dd30f119-b92c-4447-b6fe-18172ca047c1" />
 
 Creates cables as Bezier curves driven by control empties, and can optionally simulate them so they sag, drape over
 characters and props, get dragged along, and tangle.
@@ -11,11 +49,13 @@ and make layout/iteration faster while experimenting with cable routing and dres
 
 ## Install
 
-A **classic Blender add-on**, targeting **Blender 5.2 LTS**. The add-on root is the repository folder itself (it
-contains `__init__.py`).
+**Version 1.1.0.** A **classic Blender add-on** for **Blender 4.2 LTS or newer**; Dynamics needs **Blender 5.2 LTS**.
+The add-on root is the repository folder itself (it contains `__init__.py`).
 
-1. Code > download zip.
-2. In Blender: `Edit > Preferences > Add-ons > Install...`
+1. Download `procedural_cable_generator-1.1.0.zip` from the GitHub Releases page (or Code > Download ZIP for the
+   latest development version).
+2. In Blender: `Edit > Preferences > Add-ons`, open the **⌄** menu at the top right and choose
+   **Install from Disk…** (Blender 4.2 and newer).
 3. Select that zip and enable **Procedural Cable Generator**.
 
 The panel appears at `View3D > Sidebar (N) > Cable > Cable Generator`.
@@ -86,6 +126,8 @@ Pick a **Cable Preset** — they are listed as buttons at the top of the panel �
 thickness and bundle settings are set together, so a run between two objects lands on a recognisable look without
 dialling anything:
 
+![Cable presets side by side: Power Line, Street Wires, Sagging Drop, Cable Loom, Taut Run](docs/media/presets.png)
+
 | Preset | Look |
 |---|---|
 | **Power Line** | Overhead conductors between poles — heavy, evenly spread, shallow even droop |
@@ -111,6 +153,8 @@ depth you asked for — an even count straddles the middle and falls about 5% sh
 
 ### 1) From 2 Objects
 
+![From 2 Objects: the cable follows when an end object moves](docs/media/mode-two-objects.gif)
+
 1. Select exactly **two** objects; the **active** one (last selected) is the start.
 2. Set **Middle Controls** (0 = straighter, more = curvier).
 3. Optionally enable **Parent End Controls** so the ends follow those objects.
@@ -119,6 +163,8 @@ depth you asked for — an even count straddles the middle and falls about 5% sh
 ### 2) From Selected Objects (Chain)
 
 Routes one cable through **2+ objects** — useful for running a cable across props.
+
+![Chain: one cable routed through several props](docs/media/mode-chain.gif)
 
 1. Select two or more objects.
 2. Set **Chain Order** — *Nearest* (nearest-neighbour from the active object), *Selection* (Blender's order), or
@@ -131,9 +177,13 @@ Routes one cable through **2+ objects** — useful for running a cable across pr
 Controls only, no selection needed. Place the 3D cursor, set **Free Controls** and **Free Length**, and click
 **Create Free Cable (Cursor)**. Then route it by moving the empties.
 
+![Free Cable: created at the 3D cursor, then routed by moving its controls](docs/media/mode-free-cable.gif)
+
 ### 4) Coil / Roll (Cursor)
 
 For a coil of cable dropped on the ground, a hank on a hook, or a drum on a reel.
+
+![Coil / Roll: each coil preset created at the cursor](docs/media/mode-coil.gif)
 
 1. Place the 3D cursor where the coil should sit.
 2. Pick a **Coil Preset** and click **Create Coiled Cable (Cursor)**. That's the whole workflow:
@@ -161,6 +211,8 @@ unreliable. It's a normal cable afterwards, so it can be reshaped and made dynam
 ### 5) Tied Bundle (2 Objects)
 
 Several cables running together and cinched at both ends — a loom or zip-tied run.
+
+![Tied Bundle: several cables tied at both ends, fanning out between](docs/media/mode-tied-bundle.gif)
 
 1. Select exactly **two** objects (active is the start).
 2. Pick a **Cable Preset** — *Street Wires* and *Power Line* are built for this mode — or set **Cables**,
@@ -198,6 +250,8 @@ dynamics.
 Requires **Blender 5.2 LTS**. Any cable can be simulated without recreating it. This is built on Blender's
 **Cloth Dynamics (Experimental)** node asset — Blender itself labels it experimental, so behaviour may shift in
 future point releases.
+
+![Dynamics: a cable posed as an arch falls and drapes over a box, held at its ends](docs/media/dynamics.gif)
 
 ### Quick start
 
@@ -363,6 +417,8 @@ Behaviours that look like bugs but aren't:
 - `utils.py` — shared helpers: collections, naming, empties, parenting, drivers, curve building, and the helix and
   bundle maths (plain functions, testable without Blender).
 - `dynamics.py` — the Dynamics feature: Geometry Nodes trees, pin anchors, cloth proxies, colliders, bake helpers.
+- `tests/smoke_test.py` — headless smoke test: `blender -b --factory-startup --python tests/smoke_test.py`.
+- `docs/media/` — README images and GIFs (see [docs/media/README.md](docs/media/README.md)).
 
 See [AGENTS.md](AGENTS.md) for conventions to follow when changing the code, and [CHANGELOG.md](CHANGELOG.md) for
 what changed and why.
