@@ -15,7 +15,8 @@ simulation is involved. It started as a workflow script for automating cable lay
   must keep working on 4.2; guard any newer API with a version check or `hasattr` (see
   `utils.is_pose_bone_selected` for the pattern).
 - License: **GPL-3.0** (see `LICENSE`).
-- Current version per `bl_info`: **1.0.0**.
+- Current version per `bl_info`: **1.1.0**. Keep `bl_info["version"]`, the latest `CHANGELOG.md` release heading
+  and the README install section in sync when releasing.
 
 The add-on is a **classic add-on** (not an Extension/manifest-based add-on): the repository root itself is the add-on
 package and contains `__init__.py` directly.

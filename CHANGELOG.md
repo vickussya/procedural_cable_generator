@@ -11,31 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- **Dynamics acted on one cable only.** Every dynamics tool resolved a single cable from the *active* object, so
-  clicking **Make Dynamic** on a freshly generated Tied Bundle set up one cable and silently left the rest inert,
-  even though the generator leaves them all selected. `dynamics.resolve_cables_for_objects()` now resolves the whole
-  selection, and Make Dynamic, Remove Dynamics, Enable/Disable Self Collision, Bake Simulation, Delete Bake, Convert
-  To Baked Mesh and Export Alembic all act on every selected cable. Reports name the cable when there is one and
-  count them when there are several; a cable that fails is reported without aborting the others.
-- **Colliders could only be assigned to the active cable.** *Add Selected As Colliders* now assigns the collider
-  collection to every selected cable that has dynamics, so a bundle gets its colliders in one click. Selecting the
-  cables alongside the collider meshes is what drives this, and the panel hint says so.
-- **A cable's own helper meshes could be turned into colliders.** Pin anchors and cloth proxies are meshes living in
-  the cable's collection, so selecting a bundle picked them up and made the cable collide with its own simulation
-  proxy. They are now excluded from the collider set.
-- Resolving cables from a selection of control empties scans each cable's collection once rather than once per
-  selected empty, since this runs from `poll()` on every panel redraw.
-- **Presets were invisible until clicked.** All three preset lists (cable, coil and dynamics) were drawn as
-  collapsed dropdowns, so with nothing chosen the field only read "Custom" and every look on offer stayed hidden
-  behind a click — which reads as the add-on having no presets at all. They are now drawn expanded, as a list of
-  buttons showing every option with the current one highlighted.
-- **Dynamics settings only reached one cable.** Dynamics settings are stored on the cable object, so a slider only
-  ever wrote to the active one — with a bundle set up, every value had to be dialled in once per cable. Editing any
-  dynamics setting now applies to **all selected cables**, including presets and the tier, controlled by the new
-  **Edit All Selected Cables** toggle (on by default, shown once more than one cable is selected). A re-entrance
-  guard stops the mirrored write from bouncing back through each target's own update callback, and a preset's
-  individual writes are skipped in favour of mirroring the preset itself once.
+## [1.1.0] - 2026-11-20
+
+**In short:** two new ways to make cables (**Coil / Roll** and **Tied Bundle**), one-click **look presets**, and
+**Dynamics (Experimental)**: cables that sag, drape over colliders, follow bones and bake out (Blender 5.2+).
+Everything except Dynamics runs on **Blender 4.2 LTS and newer**.
 
 ### Added
 - **Cable look presets.** A **Cable Preset** list at the top of the panel sets sag, middle controls, thickness
@@ -137,8 +117,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`F9`), and re-running it updates existing colliders instead of skipping them, so collider settings can be
   retuned without removing and re-adding them. Margin is the collider's surface standoff — raise it if cables
   sink into thin or fast-moving geometry.
+- `tests/smoke_test.py`, a headless smoke test: `blender -b --factory-startup --python tests/smoke_test.py`.
+- GPL-3.0-or-later license header on every Python file.
+
+### Changed
+- **Minimum Blender is now 4.2 LTS; Dynamics needs 5.2 LTS.** `bl_info["blender"]` goes from `(3, 0, 0)` in
+  1.0.0 to `(4, 2, 0)`. All creation modes, presets and Attach Controls were tested on 4.2, 4.5 and 5.2. Dynamics
+  depends on two things that first ship in 5.2 (the bundled node-cloth assets and the
+  `NodesModifier.properties.inputs` API), so on older versions its tools are disabled and the panel says
+  "Needs Blender 5.2 or newer." instead of offering buttons that fail. (During Dynamics development the minimum
+  was briefly pinned to `(5, 2, 0)`; that was relaxed once it was clear the rest of the add-on runs on 4.2.)
+- `bl_info["version"]` bumped from `1.0.0` to `1.1.0`.
+- **README reorganised for first-time users.** A one-screen top section (quick start, supported versions, links,
+  Dynamics marked Experimental) is followed by the existing documentation under *Full documentation*, with a
+  table of contents and image placeholders per creation mode, presets and dynamics. `docs/media/README.md` lists
+  every image with recording steps. The install steps now name Blender 4.2's *Install from Disk…*.
+- Dynamics: replaced the `Pin Radius` and `Simulation Resolution` settings with a single `Divisions Per Segment`
+  control. Pin Radius no longer has any meaning now that pinning is index-based rather than proximity-based, and
+  resolution is derived from the divisions between each pair of controls.
+- Dynamics: the generated node group now carries a version marker, so a `.blend` holding a node group from an
+  earlier build gets a freshly built one instead of silently reusing an incompatible tree. Cables made dynamic
+  with an earlier build should be toggled off and on again (Remove Dynamics → Make Dynamic) to pick it up.
+  Bumped again for Phase 2's pin-mode and collision inputs.
 
 ### Fixed
+- **Add Selected As Colliders left an empty modifier behind on Blender before 5.2.** It added a `PCG Collider`
+  modifier with no node group to the user's mesh and an empty `Cable Colliders` collection before failing. The
+  operator is now unavailable on those versions.
+- **Attach Controls could crash on Blender 4.x** when the bone was picked by selection alone (no active bone),
+  because it read `PoseBone.select`, which only exists from Blender 5.0. It now falls back to `Bone.select`.
+- **A failed collider asset load could leave junk behind.** *Add Selected As Colliders* now loads the `Collider`
+  node asset before creating the `Cable Colliders` collection or adding a modifier to the mesh, so if the asset
+  cannot be loaded nothing in the scene changes.
+- **Dynamics acted on one cable only.** Every dynamics tool resolved a single cable from the *active* object, so
+  clicking **Make Dynamic** on a freshly generated Tied Bundle set up one cable and silently left the rest inert,
+  even though the generator leaves them all selected. `dynamics.resolve_cables_for_objects()` now resolves the whole
+  selection, and Make Dynamic, Remove Dynamics, Enable/Disable Self Collision, Bake Simulation, Delete Bake, Convert
+  To Baked Mesh and Export Alembic all act on every selected cable. Reports name the cable when there is one and
+  count them when there are several; a cable that fails is reported without aborting the others.
+- **Colliders could only be assigned to the active cable.** *Add Selected As Colliders* now assigns the collider
+  collection to every selected cable that has dynamics, so a bundle gets its colliders in one click. Selecting the
+  cables alongside the collider meshes is what drives this, and the panel hint says so.
+- **A cable's own helper meshes could be turned into colliders.** Pin anchors and cloth proxies are meshes living in
+  the cable's collection, so selecting a bundle picked them up and made the cable collide with its own simulation
+  proxy. They are now excluded from the collider set.
+- Resolving cables from a selection of control empties scans each cable's collection once rather than once per
+  selected empty, since this runs from `poll()` on every panel redraw.
+- **Presets were invisible until clicked.** All three preset lists (cable, coil and dynamics) were drawn as
+  collapsed dropdowns, so with nothing chosen the field only read "Custom" and every look on offer stayed hidden
+  behind a click — which reads as the add-on having no presets at all. They are now drawn expanded, as a list of
+  buttons showing every option with the current one highlighted.
+- **Dynamics settings only reached one cable.** Dynamics settings are stored on the cable object, so a slider only
+  ever wrote to the active one — with a bundle set up, every value had to be dialled in once per cable. Editing any
+  dynamics setting now applies to **all selected cables**, including presets and the tier, controlled by the new
+  **Edit All Selected Cables** toggle (on by default, shown once more than one cable is selected). A re-entrance
+  guard stops the mirrored write from bouncing back through each target's own update callback, and a preset's
+  individual writes are skipped in favour of mirroring the preset itself once.
 - **Dynamics: the self-collision proxy ribbon twisted relative to curved cables.** Its width used a single fixed
   world direction for the whole cable, so on a coil the width swung right through the cable direction, leaving
   sections of very uneven size and stiffness. Width now runs across the *local* tangent at each cross-section:
@@ -153,7 +187,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only looked at `Armature.bones.active`, which selecting a bone in the Outliner does not set, and then fell back
   to parenting to the armature object with only a warning. That looks like it worked but never follows the rig's
   bone animation, because an armature object does not move when its bones are posed. Bone selection lives on
-  `PoseBone.select` in Blender 5.2 rather than `Bone.select`, so the bone is now resolved from the active pose
+  `PoseBone.select` from Blender 5.0 on (earlier versions use `Bone.select`), so the bone is now resolved from the active pose
   bone, the active bone, or a single selected pose bone — and if no bone can be identified the operator reports an
   error instead of attaching to the object.
 - **Dynamics: dynamic cables rendered with no thickness at all.** Blender only applies a curve object's native
@@ -162,7 +196,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Thickness. The cable is now beveled inside the node group, and new **Thickness** and **Profile Resolution**
   settings appear under *Appearance* in the Dynamics panel. They adopt the cable's existing bevel when dynamics is
   enabled and write back to it, so switching dynamics on or off no longer changes how thick a cable looks.
-
 - **Dynamics: animating a pinned control dragged the cable through colliders.** A pinned control is a hard
   positional constraint that collision cannot override, so this is inherent rather than a solver bug — measured
   at 11 cable points up to 0.45 m inside a test mesh. The panel warning now says so explicitly, and the README
@@ -195,24 +228,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   usable cable behavior lives below ~0.06 and ~0.26 already collapses into hard kinks, so the previous linear
   `1 - slider` mapping spent most of its range in unusable territory. Now remapped as `(1 - slider)^3 * 0.1`.
   Worst-case bend across the whole slider range dropped from 161° to 22°.
-- `AGENTS.md` rewritten to accurately describe the current repo layout, architecture, conventions, install/test
-  steps, and agent operating rules (previous version referenced non-existent `props.py`/`ui.py` files).
-- `CHANGELOG.md` added to track changes going forward.
-- `AGENTS.md` now documents a testing-strategy convention: new logic (especially upcoming cable dynamics math)
-  should be written as plain functions separate from `bpy`/UI glue code, so headless unit tests can be added later
-  without a refactor.
-
-### Changed
-- `bl_info["blender"]` minimum bumped from `(3, 0, 0)` to `(5, 2, 0)` — the project now targets Blender 5.2 LTS
-  only, since upcoming dynamics work depends on 5.2's node-based physics and no backward compatibility is needed.
-  `bl_info["version"]` left at `1.0.0` (evaluated and not considered an "early" value worth bumping on its own).
-- Dynamics: replaced the `Pin Radius` and `Simulation Resolution` settings with a single `Divisions Per Segment`
-  control. Pin Radius no longer has any meaning now that pinning is index-based rather than proximity-based, and
-  resolution is derived from the divisions between each pair of controls.
-- Dynamics: the generated node group now carries a version marker, so a `.blend` holding a node group from an
-  earlier build gets a freshly built one instead of silently reusing an incompatible tree. Cables made dynamic
-  with an earlier build should be toggled off and on again (Remove Dynamics → Make Dynamic) to pick it up.
-  Bumped again for Phase 2's pin-mode and collision inputs.
 
 ## [1.0.0] - 2026-08-14 — baseline / pre-dynamics snapshot
 
