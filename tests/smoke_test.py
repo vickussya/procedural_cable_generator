@@ -213,6 +213,20 @@ def main() -> int:
         run_op(bpy.ops.pcg.create_cable_bundle)
         assert_cables(settings.bundle_count, max(1, settings.middle_controls) + 2)
 
+    @check("Mode: Legacy OUT/MID/IN (unmatched OUT_ skipped)")
+    def _():
+        reset_scene()
+        add_anchor((0, 0, 0)).name = "OUT_A"
+        add_anchor((1, 0, -0.5)).name = "MID_A"
+        add_anchor((2, 0, 0)).name = "IN_A"
+        add_anchor((0, 2, 0)).name = "OUT_B"  # no IN_B: must be skipped, not crash
+        select_only([], None)
+        run_op(bpy.ops.pcg.create_cables_from_out_mid_in)
+        cables = cable_curves()
+        assert [c.name for c in cables] == ["CABLE_A"], f"expected only CABLE_A, got {[c.name for c in cables]}"
+        points = len(cables[0].data.splines[0].bezier_points)
+        assert points == 3, f"CABLE_A: expected 3 points (OUT, MID, IN), found {points}"
+
     def make_two_object_cable() -> bpy.types.Object:
         reset_scene()
         start, end = add_anchor((0, 0, 0)), add_anchor((4, 0, 2))
@@ -328,6 +342,60 @@ def main() -> int:
             mod = mesh.modifiers.get(dynamics.COLLIDER_MODIFIER_NAME)
             assert mod is not None and mod.node_group is not None, "collider modifier not set up"
             assert mesh.name in bpy.data.collections[dynamics.COLLIDER_COLLECTION_NAME].objects
+
+        @check("Colliders: a keyframed collider lifts the cable without flinging it or passing through")
+        def _():
+            reset_scene()
+            settings.middle_controls = 3
+            settings.slack, settings.slack_relative = 0.0, -0.25
+            start, end = add_anchor((-2, 0, 2)), add_anchor((2, 0, 2))
+            select_only([start, end], start)
+            run_op(bpy.ops.pcg.create_cable_from_selection)
+            cable = cable_curves()[0]
+            mesh = bpy.data.meshes.new("SPHERE")
+            sphere = bpy.data.objects.new("SPHERE", mesh)
+            bpy.context.scene.collection.objects.link(sphere)
+            import bmesh
+
+            bm = bmesh.new()
+            bmesh.ops.create_uvsphere(bm, u_segments=24, v_segments=12, radius=0.4)
+            bm.to_mesh(mesh)
+            bm.free()
+            sphere.location = (0, 0, -0.2)
+            sphere.keyframe_insert("location", frame=1)
+            sphere.location = (0, 0, 1.5)
+            sphere.keyframe_insert("location", frame=80)
+            # Put the sphere where its animation says it is at frame 1, as the UI would. Starting
+            # the simulation with it still at its frame-80 pose, just under the cable, kicks
+            # the cable violently - that is a bad scene setup, not an add-on fault.
+            bpy.context.scene.frame_set(1)
+
+            select_only([cable], cable)
+            run_op(bpy.ops.pcg.make_cable_dynamic)
+            cable.pcg_dynamics.pin_mode = "ENDS"
+            select_only([sphere, cable], cable)
+            run_op(bpy.ops.pcg.add_selected_colliders)
+
+            scene = bpy.context.scene
+            highest = -1e9
+            for frame in range(1, 61):
+                scene.frame_set(frame)
+                evaluated = cable.evaluated_get(bpy.context.evaluated_depsgraph_get())
+                mesh_eval = evaluated.to_mesh()
+                highest = max(highest, max(v.co.z for v in mesh_eval.vertices))
+                middle = min(v.co.z for v in mesh_eval.vertices if abs(v.co.x) < 0.15)
+                evaluated.to_mesh_clear()
+            settings.middle_controls, settings.slack_relative = 1, 0.0
+            # Ends are pinned at z=2 and the sphere never rises above 1.9, so the cable must
+            # never be thrown above its ends.
+            assert highest < 2.1, f"cable thrown up to z={highest:.2f}"
+            # By frame 60 the sphere (top ~1.63) has lifted the cable's middle off its rest
+            # height of ~1.0: the middle should ride on the sphere, not sink through it.
+            sphere_top = sphere.matrix_world.translation.z + 0.4
+            assert middle > sphere_top - 0.05, (
+                f"cable middle z={middle:.2f} is inside the sphere (top z={sphere_top:.2f})"
+            )
+            return f"cable middle {middle:.2f} on sphere top {sphere_top:.2f} at frame 60"
 
     else:
 

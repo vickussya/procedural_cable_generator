@@ -118,6 +118,9 @@ Everything except Dynamics runs on **Blender 4.2 LTS and newer**.
   retuned without removing and re-adding them. Margin is the collider's surface standoff — raise it if cables
   sink into thin or fast-moving geometry.
 - `tests/smoke_test.py`, a headless smoke test: `blender -b --factory-startup --python tests/smoke_test.py`.
+  It covers all six creation modes (including Legacy OUT/MID/IN), live updates, Attach Controls, the panel draw
+  code, the Dynamics gate (before 5.2) or Dynamics setup, cleanup and colliders (5.2+, including a keyframed
+  collider lifting a cable), and a clean disable.
 - GPL-3.0-or-later license header on every Python file.
 
 ### Changed
