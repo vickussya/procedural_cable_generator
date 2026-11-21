@@ -6,7 +6,8 @@
 
 ### Quick start
 
-1. Download **`procedural_cable_generator-1.1.0.zip`** from [Releases][releases], then in Blender go to
+1. Download **`procedural_cable_generator-1.1.0.zip`** from [Releases][releases] (not the green *Code* button; see
+   [Install](#install)), then in Blender go to
    `Edit > Preferences > Add-ons > ⌄ > Install from Disk…`, pick the ZIP, and enable it.
 2. In the 3D Viewport press **N** and open the **Cable** tab.
 3. Select **two objects**. The one you click last is where the cable starts.
@@ -52,8 +53,13 @@ and make layout/iteration faster while experimenting with cable routing and dres
 **Version 1.1.0.** A **classic Blender add-on** for **Blender 4.2 LTS or newer**; Dynamics needs **Blender 5.2 LTS**.
 The add-on root is the repository folder itself (it contains `__init__.py`).
 
-1. Download `procedural_cable_generator-1.1.0.zip` from the GitHub Releases page (or Code > Download ZIP for the
-   latest development version).
+1. Download `procedural_cable_generator-1.1.0.zip` from the [Releases][releases] page.
+
+   > **Don't use the green "Code › Download ZIP" button.** It packs the repository into a folder named after the
+   > branch (e.g. `procedural_cable_generator-release-1.1.0`), and Blender can't load an add-on whose folder name
+   > isn't a valid Python module name, so it fails with "No module named …"; the Releases ZIP is built to install
+   > as-is.
+
 2. In Blender: `Edit > Preferences > Add-ons`, open the **⌄** menu at the top right and choose
    **Install from Disk…** (Blender 4.2 and newer).
 3. Select that zip and enable **Procedural Cable Generator**.
