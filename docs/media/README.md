@@ -127,5 +127,6 @@ sinking in), settling within about 20 frames.
 7. **Start recording**, press **Play** (`Space`). Don't scrub: the simulation needs to play forward from frame 1.
 8. **Stop recording** about a second after the cable has settled on the box.
 
-Avoid keyframing the collider to move into the cable for now. In testing, an object-animated collider flung the
-cable before touching it (see the 1.1.0 known limitations).
+An animated collider works too (e.g. a sphere keyframed to rise into the cable). Whichever you record, make sure
+the collider is where its animation puts it at frame 1 before pressing Play. Starting the simulation with a
+collider left right next to the cable and then jumping away kicks the cable hard.
