@@ -32,11 +32,13 @@ package and contains `__init__.py` directly.
 | `utils.py` | Shared helpers: collection management, unique naming, empty creation, parenting (objects and armature bones), driver wiring, and curve construction. No Blender operator/UI classes live here. |
 | `dynamics.py` | The Dynamics feature: builds the Geometry Nodes trees, the pin anchor and cloth proxy objects, collider setup, and the bake helpers. No operator/UI classes here either. |
 | `tests/smoke_test.py` | Headless smoke test, run inside Blender (see *How to install & test*). Not part of the add-on. |
+| `tools/build_release.py` | Builds `dist/procedural_cable_generator-<version>.zip` (see *Releasing*). Not part of the add-on. |
+| `docs/` | README media (`docs/media/`, with its shot list) and per-release GitHub release notes. Not part of the add-on. |
 | `README.md` | User-facing install and usage instructions. |
 | `LICENSE` | GPL-3.0 license text. |
 | `.gitignore` | Standard Blender/Python/VS Code ignores. |
 
-There is a headless smoke test (`tests/smoke_test.py`), no build tooling, and no external dependencies beyond
+There is a headless smoke test (`tests/smoke_test.py`), a release build script, and no external dependencies beyond
 `bpy`/`mathutils` (Blender's bundled API). Every `.py` file starts with the GPL-3.0-or-later license header; keep
 it on new files.
 
@@ -99,9 +101,9 @@ it on new files.
 
 ## How to install & test
 
-1. **Install:** Zip this repository's folder so the zip's top-level entry is `procedural_cable_generator/` containing
-   `__init__.py` directly (i.e. the folder you zip must be named `procedural_cable_generator`). In Blender:
-   `Edit > Preferences > Add-ons > Install...`, select the zip, enable **Procedural Cable Generator**.
+1. **Install:** run `python tools/build_release.py` to get `dist/procedural_cable_generator-<version>.zip` (its
+   top-level entry is `procedural_cable_generator/` containing `__init__.py`). In Blender 4.2+:
+   `Edit > Preferences > Add-ons > ⌄ > Install from Disk…`, select the zip, enable **Procedural Cable Generator**.
 2. **Open the UI:** `View3D > Sidebar (N) > Cable > Cable Generator`.
 3. **Smoke-test each creation mode after any change:**
    - **From 2 Objects:** select exactly two objects (active = start), set Middle Controls, optionally enable Parent
@@ -130,6 +132,22 @@ constraint solving, etc.) should be written as plain functions operating on `mat
 reaching into `bpy.data`/`bpy.context` directly, and kept separate from the `bpy.types.Operator`/`Panel` glue code
 that calls them (following the existing `utils.py` split). This costs nothing today but means headless unit tests
 can be added later without a refactor.
+
+## Releasing
+
+1. Bump `bl_info["version"]`, move `[Unreleased]` in `CHANGELOG.md` to a dated version heading, and update the
+   README install section to match.
+2. `python tools/build_release.py` writes `dist/procedural_cable_generator-<version>.zip` (git-ignored). It packs
+   only the top-level `.py` files and `LICENSE` under one `procedural_cable_generator/` folder, with LF line endings
+   and fixed timestamps, so the same sources always give the same ZIP. `README.md` is deliberately left out
+   (Blender doesn't use it; it's read on GitHub), so README edits don't change the release asset. The folder name
+   must stay a valid Python module name: GitHub's "Code › Download ZIP" names it after the branch, which breaks
+   the import as soon as the branch name contains a dot.
+3. Install that ZIP into a clean Blender through *Install from Disk* (`extensions.package_install_files`) and run
+   `tests/smoke_test.py -- --use-installed` against it, on 4.2 LTS and 5.2 LTS. Point `BLENDER_USER_RESOURCES` and
+   `BLENDER_USER_SCRIPTS` at an empty temp folder so the user's own Blender config is untouched.
+4. Release notes live in `docs/release_notes_<version>.md`. Use absolute GitHub URLs in them: relative links
+   don't resolve on a GitHub Release page.
 
 ## Agent operating rules
 

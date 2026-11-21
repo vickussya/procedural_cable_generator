@@ -122,6 +122,11 @@ Everything except Dynamics runs on **Blender 4.2 LTS and newer**.
   code, the Dynamics gate (before 5.2) or Dynamics setup, cleanup and colliders (5.2+, including a keyframed
   collider lifting a cable), and a clean disable.
 - GPL-3.0-or-later license header on every Python file.
+- `tools/build_release.py` builds the installable `dist/procedural_cable_generator-<version>.zip` from only the
+  add-on's own files (the Python modules and `LICENSE`), reproducibly. Release notes for this version are in
+  `docs/release_notes_1.1.0.md`.
+- README and release notes warn against installing GitHub's "Code › Download ZIP": its folder is named after the
+  branch, and a branch name with dots (e.g. `release-1.1.0`) makes Blender fail with "No module named …".
 
 ### Changed
 - **Minimum Blender is now 4.2 LTS; Dynamics needs 5.2 LTS.** `bl_info["blender"]` goes from `(3, 0, 0)` in
